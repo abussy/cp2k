@@ -114,7 +114,8 @@ MODULE input_cp2k_dft
    USE input_cp2k_tb,                   ONLY: create_dftb_control_section,&
                                               create_xtb_control_section
    USE input_cp2k_transport,            ONLY: create_transport_section
-   USE input_cp2k_xc,                   ONLY: create_xc_section, create_xc_fun_section
+   USE input_cp2k_xc,                   ONLY: create_xc_fun_section,&
+                                              create_xc_section
    USE input_keyword_types,             ONLY: keyword_create,&
                                               keyword_release,&
                                               keyword_type
@@ -8299,7 +8300,6 @@ CONTAINS
 
 !  The XC_FUNCTIONAL subsubsection
       CALL create_xc_fun_section(subsubsection)
-
       CALL section_add_subsection(subsection, subsubsection)
       CALL section_release(subsubsection)
 
