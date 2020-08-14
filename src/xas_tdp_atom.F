@@ -2349,25 +2349,30 @@ CONTAINS
 
       !Vxc, first term
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drhoa)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            vxc(1)%array(ia, ir) = d2e(ia, ir, 1)*dot_proda(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               vxc(1)%array(ia, ir) = d2e(ia, ir, 1)*dot_proda(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxc, second term
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            vxc(1)%array(ia, ir) = vxc(1)%array(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               vxc(1)%array(ia, ir) = vxc(1)%array(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxc, take the grid weight into acocunt
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
@@ -2380,48 +2385,56 @@ CONTAINS
 
       !Vxg, first term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drhoa)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, second term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, third term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drhoa)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, fourth term (to be multiplied by drhoa)
-      deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)")
-      CALL xc_derivative_get(deriv, deriv_data=d1e)
+      deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)") 
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d1e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) - d1e(ia, ir, 1)*dot_proda(ia, ir) &
-                          /MAX(norm_drhoa(ia, ir, 1), rho_set%drho_cutoff)**2
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) - d1e(ia, ir, 1)*dot_proda(ia, ir) &
+                             /MAX(norm_drhoa(ia, ir, 1), rho_set%drho_cutoff)**2
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !put tmp*drhoa in Vxg (so that we can reuse it for drhob terms)
       DO dir = 1, 3
@@ -2436,36 +2449,42 @@ CONTAINS
 
       !Vxg, fifth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, sixth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, seventh term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !put tmp*drhob in Vxg
       DO dir = 1, 3
@@ -2480,16 +2499,18 @@ CONTAINS
 
       !Vxg, last term
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)")
-      CALL xc_derivative_get(deriv, deriv_data=d1e)
-      DO dir = 1, 3
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d1e)
+         DO dir = 1, 3
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               vxg(1)%array(ia, ir, dir) = vxg(1)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  vxg(1)%array(ia, ir, dir) = vxg(1)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
-      END DO !dir
+         END DO !dir
+      END IF
 
       !Vxg, take the grid weight into account
       DO dir = 1, 3
@@ -2506,25 +2527,29 @@ CONTAINS
 
       !Vxc, first term
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drhob)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            vxc(2)%array(ia, ir) = d2e(ia, ir, 1)*dot_prodb(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               vxc(2)%array(ia, ir) = d2e(ia, ir, 1)*dot_prodb(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxc, second term
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            vxc(2)%array(ia, ir) = vxc(2)%array(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               vxc(2)%array(ia, ir) = vxc(2)%array(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxc, take the grid weight into acocunt
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
@@ -2537,36 +2562,42 @@ CONTAINS
 
       !Vxg, first term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drhoa)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, second term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, third term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drhob)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !put tmp*drhoa in Vxg
       DO dir = 1, 3
@@ -2581,36 +2612,42 @@ CONTAINS
 
       !Vxg, fourth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, fifth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)(norm_drhob)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !Vxg, sixth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d2e)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-      DO ir = 1, nr
-         DO ia = 1, na
-            tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
-         END DO !ia
-      END DO !ir
+         DO ir = 1, nr
+            DO ia = 1, na
+               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+            END DO !ia
+         END DO !ir
 !$OMP END DO NOWAIT
+      END IF
 
       !put tmp*drhob in Vxg
       DO dir = 1, 3
@@ -2625,16 +2662,18 @@ CONTAINS
 
       !Vxg, last term
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)")
-      CALL xc_derivative_get(deriv, deriv_data=d1e)
-      DO dir = 1, 3
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d1e)
+         DO dir = 1, 3
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               vxg(2)%array(ia, ir, dir) = vxg(2)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  vxg(2)%array(ia, ir, dir) = vxg(2)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
-      END DO !dir
+         END DO !dir
+      END IF
 
       !Vxg, take the grid weight into account
       DO dir = 1, 3
@@ -2652,25 +2691,29 @@ CONTAINS
 
          !Vxc, first term
          deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drhob)")
-         CALL xc_derivative_get(deriv, deriv_data=d2e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               vxc(3)%array(ia, ir) = d2e(ia, ir, 1)*dot_prodb(ia, ir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  vxc(3)%array(ia, ir) = d2e(ia, ir, 1)*dot_prodb(ia, ir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !Vxc, second term
          deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drho)")
-         CALL xc_derivative_get(deriv, deriv_data=d2e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               vxc(3)%array(ia, ir) = vxc(3)%array(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
-            END DO !i
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  vxc(3)%array(ia, ir) = vxc(3)%array(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+               END DO !i
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !Vxc, take the grid weight into acocunt
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
@@ -2683,48 +2726,56 @@ CONTAINS
 
          !Vxg, first term (to be multiplied by drhob)
          deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drhob)")
-         CALL xc_derivative_get(deriv, deriv_data=d2e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !Vxg, second term (to be multiplied by drhob)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)(norm_drho)")
-         CALL xc_derivative_get(deriv, deriv_data=d2e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !Vxg, third term (to be multiplied by drhob)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)(norm_drhob)")
-         CALL xc_derivative_get(deriv, deriv_data=d2e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !Vxg, fourth term (to be multiplied by drhob)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)")
-         CALL xc_derivative_get(deriv, deriv_data=d1e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d1e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               tmp(ia, ir) = tmp(ia, ir) - d1e(ia, ir, 1)*dot_prodb(ia, ir) &
-                             /MAX(norm_drhob(ia, ir, 1), rho_set%drho_cutoff)**2
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  tmp(ia, ir) = tmp(ia, ir) - d1e(ia, ir, 1)*dot_prodb(ia, ir) &
+                                /MAX(norm_drhob(ia, ir, 1), rho_set%drho_cutoff)**2
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !put tmp*drhob in Vxg (so that we can reuse it for drhoa terms)
          DO dir = 1, 3
@@ -2739,36 +2790,42 @@ CONTAINS
 
          !Vxg, fifth term (to be multiplied by drhoa)
          deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drho)")
-         CALL xc_derivative_get(deriv, deriv_data=d2e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !Vxg, sixth term (to be multiplied by drhoa)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)(norm_drho)")
-         CALL xc_derivative_get(deriv, deriv_data=d2e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !Vxg, seventh term (to be multiplied by drhoa)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)(norm_drho)")
-         CALL xc_derivative_get(deriv, deriv_data=d2e)
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d2e)
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-         DO ir = 1, nr
-            DO ia = 1, na
-               tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
-            END DO !ia
-         END DO !ir
+            DO ir = 1, nr
+               DO ia = 1, na
+                  tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+               END DO !ia
+            END DO !ir
 !$OMP END DO NOWAIT
+         END IF
 
          !put tmp*drhoa in Vxg
          DO dir = 1, 3
@@ -2784,16 +2841,18 @@ CONTAINS
 
          !Vxg, last term
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)")
-         CALL xc_derivative_get(deriv, deriv_data=d1e)
-         DO dir = 1, 3
+         IF (ASSOCIATED(deriv)) THEN
+            CALL xc_derivative_get(deriv, deriv_data=d1e)
+            DO dir = 1, 3
 !$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
-            DO ir = 1, nr
-               DO ia = 1, na
-                  vxg(3)%array(ia, ir, dir) = vxg(3)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
-               END DO !ia
-            END DO !ir
+               DO ir = 1, nr
+                  DO ia = 1, na
+                     vxg(3)%array(ia, ir, dir) = vxg(3)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
+                  END DO !ia
+               END DO !ir
 !$OMP END DO NOWAIT
-         END DO !dir
+            END DO !dir
+         END IF
 
          !Vxg, take the grid weight into account
          DO dir = 1, 3
