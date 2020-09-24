@@ -3389,7 +3389,7 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
-      NULLIFY (int_soc, basis, qs_kind_set, sphi_so, matrix_s)
+      NULLIFY (int_soc, basis, qs_kind_set, sphi_so, matrix_s, grid)
       NULLIFY (particle_set)
 
       CALL timeset(routineN, handle)
@@ -3402,12 +3402,11 @@ CONTAINS
 !  Loop over the kinds to compute the integrals
       DO ikind = 1, nkind
 
-         CALL get_qs_kind(qs_kind_set(ikind), basis_set=basis, basis_type="ORB", zeff=zeff)
+         CALL get_qs_kind(qs_kind_set(ikind), basis_set=basis, basis_type="ORB", zeff=zeff, grid_atom=grid)
          CALL get_gto_basis_set(basis, nset=nset, maxso=maxso)
          ALLOCATE (intso(nset*maxso, nset*maxso, 3))
 
          ! compute the model potential on the grid
-         grid => xas_atom_env%grid_atom_set(ikind)%grid_atom
          nr = grid%nr
          na = grid%ng_sphere
          ALLOCATE (Vr(nr))

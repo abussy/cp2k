@@ -446,8 +446,8 @@ CONTAINS
                   CALL write_donor_state_restart(tddfpt_triplet, current_state, xas_tdp_section)
                END IF
 
-!              Include the SOC if required
-               IF (xas_tdp_control%do_soc) THEN
+!              Include the SOC if required, only for 2p donor stataes
+               IF (xas_tdp_control%do_soc .AND. current_state%state_type == xas_2p_type) THEN
                   IF (xas_tdp_control%do_singlet .AND. xas_tdp_control%do_triplet) THEN
                      CALL include_rcs_soc(current_state, xas_tdp_env, xas_tdp_control, qs_env)
                   END IF
@@ -868,11 +868,6 @@ CONTAINS
          END IF
       END IF
 
-      !Look for eigenvalues within energy range and SOC not compatible
-      IF (xas_tdp_control%e_range .GT. 0.0_dp .AND. xas_tdp_control%do_soc) THEN
-         CPABORT("Use N_EXCITED instead of ENERGY_RANGE for SOC calculations")
-      END IF
-
       !TDA, full-TDDFT and diagonalization
       IF (.NOT. xas_tdp_control%tamm_dancoff) THEN
 
@@ -962,7 +957,7 @@ CONTAINS
          "XAS_TDP| EPS_FILTER: ", xas_tdp_control%eps_filter
 
       !Grid info
-      IF (xas_tdp_control%do_soc .OR. xas_tdp_control%do_xc) THEN
+      IF (xas_tdp_control%do_xc) THEN
          WRITE (UNIT=ou, FMT="(T3,A)") &
             "XAS_TDP| Radial Grid(s) Info: Kind,  na,  nr"
          DO i = 1, SIZE(xas_tdp_control%grid_info, 1)
@@ -2867,7 +2862,7 @@ CONTAINS
          END IF
       END IF ! do_triplet
 
-      IF (xas_tdp_control%do_soc) THEN
+      IF (xas_tdp_control%do_soc .AND. donor_state%state_type == xas_2p_type) THEN
          IF (xas_tdp_unit > 0) THEN
 
 !           Printing the general donor state information
