@@ -3204,17 +3204,13 @@ CONTAINS
 !> \param intso the integral in terms of the spherical orbitals (well, their derivative)
 !> \param V the potential (put on the grid and weighted) to integrate
 !> \param ikind the atomic kind for which we integrate
-!> \param xas_atom_env ...
 !> \param qs_env ...
-!> \note The atomic grids are taken fron xas_atom_env and the orbitals are the normal ones. Ok since
-!>       the grid and spherical harmonics for those grids are at least as good as the GAPW ones
 ! **************************************************************************************************
-   SUBROUTINE integrate_so_dxdy_prod(intso, V, ikind, xas_atom_env, qs_env)
+   SUBROUTINE integrate_so_dxdy_prod(intso, V, ikind, qs_env)
 
       REAL(dp), DIMENSION(:, :, :), INTENT(INOUT)        :: intso
       REAL(dp), DIMENSION(:, :), INTENT(IN)              :: V
       INTEGER, INTENT(IN)                                :: ikind
-      TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       INTEGER                                            :: i, ipgf, iset, iso, j, jpgf, jset, jso, &
@@ -3232,12 +3228,9 @@ CONTAINS
 
       NULLIFY (grid_atom, harmonics, basis, qs_kind_set, dslm_dxyz, slm, lmin, lmax, npgf, zet)
 
-!  Getting what we need from the atom_env
-      harmonics => xas_atom_env%harmonics_atom_set(ikind)%harmonics_atom
-      grid_atom => xas_atom_env%grid_atom_set(ikind)%grid_atom
-
       CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set)
-      CALL get_qs_kind(qs_kind_set(ikind), basis_set=basis, basis_type="ORB")
+      CALL get_qs_kind(qs_kind_set(ikind), basis_set=basis, basis_type="ORB", harmonics=harmonics, &
+                       grid_atom=grid_atom)
 
       na = grid_atom%ng_sphere
       nr = grid_atom%nr
@@ -3423,7 +3416,7 @@ CONTAINS
          DEALLOCATE (Vr)
 
          ! compute the integral <da_dx|...|db_dy> in terms of so
-         CALL integrate_so_dxdy_prod(intso, V, ikind, xas_atom_env, qs_env)
+         CALL integrate_so_dxdy_prod(intso, V, ikind, qs_env)
          DEALLOCATE (V)
 
          ! contract in terms of sgf
