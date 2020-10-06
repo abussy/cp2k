@@ -51,13 +51,14 @@ MODULE xas_tdp_methods
                                               debug_print_level
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
-        dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_finalize, dbcsr_get_info, &
+        dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_filter, dbcsr_finalize, dbcsr_get_info, &
         dbcsr_multiply, dbcsr_p_type, dbcsr_set, dbcsr_type_no_symmetry
    USE input_constants,                 ONLY: &
-        do_loc_none, do_potential_coulomb, do_potential_id, do_potential_short, &
-        do_potential_truncated, op_loc_berry, state_loc_list, tddfpt_singlet, tddfpt_spin_cons, &
-        tddfpt_spin_flip, tddfpt_triplet, xas_1s_type, xas_2p_type, xas_2s_type, xas_dip_len, &
-        xas_dip_vel, xas_not_excited, xas_tdp_by_index, xas_tdp_by_kind
+        do_admm_purify_cauchy_subspace, do_admm_purify_mo_diag, do_admm_purify_none, do_loc_none, &
+        do_potential_coulomb, do_potential_id, do_potential_short, do_potential_truncated, &
+        op_loc_berry, state_loc_list, tddfpt_singlet, tddfpt_spin_cons, tddfpt_spin_flip, &
+        tddfpt_triplet, xas_1s_type, xas_2p_type, xas_2s_type, xas_dip_len, xas_dip_vel, &
+        xas_not_excited, xas_tdp_by_index, xas_tdp_by_kind
    USE input_cp2k_dft,                  ONLY: create_localize_section
    USE input_section_types,             ONLY: section_release,&
                                               section_type,&
@@ -809,7 +810,7 @@ CONTAINS
       END IF
 
 !  Check that everything is allowed
-      CALL safety_check(xas_tdp_control)
+      CALL safety_check(xas_tdp_control, qs_env)
 
 !  Initialize libint for the 3-center integrals
       CALL cp_libint_static_init()
@@ -824,10 +825,14 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Checks for forbidden keywords combinations
 !> \param xas_tdp_control ...
+!> \param qs_env ...
 ! **************************************************************************************************
-   SUBROUTINE safety_check(xas_tdp_control)
+   SUBROUTINE safety_check(xas_tdp_control, qs_env)
 
       TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+
+      TYPE(dft_control_type), POINTER                    :: dft_control
 
       !PB only available without exact exchange
       IF (xas_tdp_control%is_periodic .AND. xas_tdp_control%do_hfx &
@@ -878,7 +883,18 @@ CONTAINS
          IF (xas_tdp_control%do_ot) THEN
             CPABORT("OT diagonalization only available within the Tamm-Dancoff approximation")
          END IF
+      END IF
 
+      !Only allow ADMM schemes that correct for eigenvalues
+      CALL get_qs_env(qs_env, dft_control=dft_control)
+      IF (dft_control%do_admm) THEN
+         IF ((.NOT. qs_env%admm_env%purification_method == do_admm_purify_none) .AND. &
+             (.NOT. qs_env%admm_env%purification_method == do_admm_purify_cauchy_subspace) .AND. &
+             (.NOT. qs_env%admm_env%purification_method == do_admm_purify_mo_diag)) THEN
+
+            CPABORT("XAS_TDP only compatible with ADMM purification NONE, CAUCHY_SUBSPACE and MO_DIAG")
+
+         END IF
       END IF
 
    END SUBROUTINE safety_check
@@ -2664,6 +2680,7 @@ CONTAINS
       ALLOCATE (xas_tdp_env%ot_prec(ispin)%matrix)
       CALL dbcsr_create(xas_tdp_env%ot_prec(ispin)%matrix, template=matrix_s(1)%matrix, name="OT_PREC")
       CALL copy_fm_to_dbcsr(fm_prec, xas_tdp_env%ot_prec(ispin)%matrix)
+      CALL dbcsr_filter(xas_tdp_env%ot_prec(ispin)%matrix, xas_tdp_control%eps_filter)
 
       CALL cp_fm_release(work_fm)
       CALL cp_fm_release(fm_prec)
