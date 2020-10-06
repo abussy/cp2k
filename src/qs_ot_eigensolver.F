@@ -64,11 +64,10 @@ CONTAINS
 !> \param size_ortho_space ...
 !> \param silent ...
 !> \param ot_settings ...
-!> \param eps_filter ...
 ! **************************************************************************************************
    SUBROUTINE ot_eigensolver(matrix_h, matrix_s, matrix_orthogonal_space_fm, &
                              matrix_c_fm, preconditioner, eps_gradient, &
-                             iter_max, size_ortho_space, silent, ot_settings, eps_filter)
+                             iter_max, size_ortho_space, silent, ot_settings)
 
       TYPE(dbcsr_type), POINTER                          :: matrix_h, matrix_s
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: matrix_orthogonal_space_fm
@@ -79,7 +78,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: size_ortho_space
       LOGICAL, INTENT(IN), OPTIONAL                      :: silent
       TYPE(qs_ot_settings_type), INTENT(IN), OPTIONAL    :: ot_settings
-      REAL(dp), OPTIONAL                                 :: eps_filter
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'ot_eigensolver'
       INTEGER, PARAMETER                                 :: max_iter_inner_loop = 40
@@ -88,7 +86,7 @@ CONTAINS
       INTEGER                                            :: handle, ieigensolver, iter_total, k, n, &
                                                             ortho_k, ortho_space_k, output_unit
       LOGICAL                                            :: energy_only, my_silent, ortho
-      REAL(KIND=dp)                                      :: delta, energy, my_eps_filter
+      REAL(KIND=dp)                                      :: delta, energy
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_hc
       TYPE(dbcsr_type), POINTER                          :: matrix_buf1_ortho, matrix_buf2_ortho, &
                                                             matrix_c, matrix_orthogonal_space, &
@@ -104,9 +102,6 @@ CONTAINS
       ELSE
          my_silent = .FALSE.
       END IF
-
-      my_eps_filter = 0.0_dp
-      IF (PRESENT(eps_filter)) my_eps_filter = eps_filter
 
       NULLIFY (matrix_c) ! fm->dbcsr
       !XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx
@@ -178,9 +173,9 @@ CONTAINS
                                                sym=dbcsr_type_no_symmetry)
 
             CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, matrix_orthogonal_space, &
-                                0.0_dp, matrix_s_ortho, filter_eps=my_eps_filter)
+                                0.0_dp, matrix_s_ortho)
             CALL dbcsr_multiply('T', 'N', rone, matrix_s_ortho, matrix_s_ortho, &
-                                rzero, matrix_os_ortho, filter_eps=my_eps_filter)
+                                rzero, matrix_os_ortho)
 
             CALL cp_dbcsr_cholesky_decompose(matrix_os_ortho, &
                                              para_env=qs_ot_env(1)%para_env, blacs_env=qs_ot_env(1)%blacs_env)
@@ -189,16 +184,16 @@ CONTAINS
                                           upper_to_full=.TRUE.)
 
             CALL dbcsr_multiply('T', 'N', rone, matrix_s_ortho, matrix_c, &
-                                rzero, matrix_buf1_ortho, filter_eps=my_eps_filter)
+                                rzero, matrix_buf1_ortho)
             CALL dbcsr_multiply('N', 'N', rone, matrix_os_ortho, matrix_buf1_ortho, &
-                                rzero, matrix_buf2_ortho, filter_eps=my_eps_filter)
+                                rzero, matrix_buf2_ortho)
             CALL dbcsr_multiply('N', 'N', -rone, matrix_s_ortho, matrix_buf2_ortho, &
-                                rone, matrix_c, filter_eps=my_eps_filter)
+                                rone, matrix_c)
 
             ! make matrix_c0 an orthogonal basis, matrix_c contains sc0
             CALL dbcsr_copy(qs_ot_env(1)%matrix_c0, matrix_c)
             CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_c0, &
-                                0.0_dp, matrix_c, filter_eps=my_eps_filter)
+                                0.0_dp, matrix_c)
 
             CALL make_basis_sv(qs_ot_env(1)%matrix_c0, k, matrix_c, &
                                qs_ot_env(1)%para_env, qs_ot_env(1)%blacs_env)
@@ -221,7 +216,7 @@ CONTAINS
             ! set c0,sc0
             CALL dbcsr_copy(qs_ot_env(1)%matrix_c0, matrix_c)
             CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_c0, &
-                                0.0_dp, qs_ot_env(1)%matrix_sc0, filter_eps=my_eps_filter)
+                                0.0_dp, qs_ot_env(1)%matrix_sc0)
 
             CALL make_basis_sv(qs_ot_env(1)%matrix_c0, k, qs_ot_env(1)%matrix_sc0, &
                                qs_ot_env(1)%para_env, qs_ot_env(1)%blacs_env)
@@ -260,7 +255,7 @@ CONTAINS
 
             ! the energy is cHc, the gradient is 2*H*c
             CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_h, matrix_c, &
-                                0.0_dp, matrix_hc(1)%matrix, filter_eps=my_eps_filter)
+                                0.0_dp, matrix_hc(1)%matrix)
             CALL dbcsr_dot(matrix_c, matrix_hc(1)%matrix, energy)
             IF (.NOT. energy_only) THEN
                CALL dbcsr_scale(matrix_hc(1)%matrix, 2.0_dp)
@@ -272,7 +267,7 @@ CONTAINS
             energy_only = qs_ot_env(1)%energy_only
 
             CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_x, &
-                                0.0_dp, qs_ot_env(1)%matrix_sx, filter_eps=my_eps_filter)
+                                0.0_dp, qs_ot_env(1)%matrix_sx)
 
             CALL qs_ot_get_p(qs_ot_env(1)%matrix_x, qs_ot_env(1)%matrix_sx, qs_ot_env(1))
             CALL qs_ot_get_orbitals(matrix_c, qs_ot_env(1)%matrix_x, qs_ot_env(1))
