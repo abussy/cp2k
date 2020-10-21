@@ -360,14 +360,14 @@ CONTAINS
                                  0.5_dp*gg(1:nr, l)*dd(1:nr)*CPCS_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
 
                               rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) = &
-                                 rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) + &
+                                 rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) - &
                                  0.5_dp*REAL(m1*m2, dp)*gg(1:nr, l)*CPCH_sphere(iso1, iso2)* &
-                                 my_CG(isom1, isom2, iso)/grid_atom%rad2(1:nr)
+                                 my_CG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
 
                               rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) = &
-                                 rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) + &
+                                 rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) - &
                                  0.5_dp*REAL(m1*m2, dp)*gg(1:nr, l)*CPCS_sphere(iso1, iso2)* &
-                                 my_CG(isom1, isom2, iso)/grid_atom%rad2(1:nr)
+                                 my_CG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
 
                            ENDDO ! icg
 

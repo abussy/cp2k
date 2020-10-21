@@ -882,19 +882,26 @@ CONTAINS
                tau_h(ia, ispin) = tau_h(ia, ispin) + &
                                   trho_h(1, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
                tau_h(ia, ispin) = tau_h(ia, ispin) + &
-                                  trho_h(3, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
+                                  trho_h(2, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
                tau_s(ia, ispin) = tau_s(ia, ispin) + &
                                   trho_s(1, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
                tau_s(ia, ispin) = tau_s(ia, ispin) + &
-                                  trho_s(3, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
+                                  trho_s(2, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
             END DO ! ia
          END DO ! iso
          DO iso = 1, harmonics%max_iso_not0
             DO ia = 1, na
-               tau_h(ia, ispin) = tau_h(ia, ispin) + &
-                                  trho_h(2, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)*grid_atom%usin_azi(ia)**2
-               tau_s(ia, ispin) = tau_s(ia, ispin) + &
-                                  trho_s(2, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)*grid_atom%usin_azi(ia)**2
+               IF (ABS(grid_atom%sin_pol(ia)) > EPSILON(1.0_dp)) THEN
+                  tau_h(ia, ispin) = tau_h(ia, ispin) + &
+                                     trho_h(3, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)/grid_atom%sin_pol(ia)**2
+                  tau_s(ia, ispin) = tau_s(ia, ispin) + &
+                                     trho_s(3, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)/grid_atom%sin_pol(ia)**2
+               ELSE
+                  tau_h(ia, ispin) = tau_h(ia, ispin) + &
+                                     trho_h(3, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
+                  tau_s(ia, ispin) = tau_s(ia, ispin) + &
+                                     trho_s(3, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
+               END IF
             END DO ! ia
          END DO ! iso
       END DO ! ispin
@@ -1434,7 +1441,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'dgaVtaudgb'
 
-      INTEGER :: dmax_iso_not0_local, handle, ic, icg, ipgf1, ipgf2, iset1, iset2, iso, iso1, &
+      INTEGER :: dmax_iso_not0_local, handle, ia, ic, icg, ipgf1, ipgf2, iset1, iset2, iso, iso1, &
          iso2, isom1, isom2, ispin, l1, l2, lmax12, lmax_expansion, lmin12, m1, m2, max_iso_not0, &
          max_iso_not0_local, max_s_harm, maxiso, maxl, maxso, mm1, mm2, n1, n2, na, ngau1, ngau2, &
          nngau1, nr, nset, size1
@@ -1485,6 +1492,9 @@ CONTAINS
       NULLIFY (int_hh, int_ss)
       CALL get_rho_atom(rho_atom=rho_atom, ga_Vlocal_gb_h=int_hh, ga_Vlocal_gb_s=int_ss)
 
+      PRINT *, "Int Vtau soft: ", SUM(vtau_s)
+      PRINT *, "Int Vtau hard: ", SUM(vtau_h)
+
       vtau_h = 0.5_dp*vtau_h
       vtau_s = 0.5_dp*vtau_s
 
@@ -1496,7 +1506,14 @@ CONTAINS
             ww(1:na) = harmonics%slm(1:na, iso)
             vth(1:nr, iso) = MATMUL(ww(1:na), vtau_h(1:na, 1:nr, ispin))
             vts(1:nr, iso) = MATMUL(ww(1:na), vtau_s(1:na, 1:nr, ispin))
-            ww(1:na) = harmonics%slm(1:na, iso)*grid_atom%usin_azi(1:na)**2
+            DO ia = 1, na
+               IF (ABS(grid_atom%sin_pol(ia)) > EPSILON(1.0_dp)) THEN
+                  ww(ia) = harmonics%slm(ia, iso)/grid_atom%sin_pol(ia)**2
+               ELSE
+                  ww(ia) = harmonics%slm(ia, iso)
+               END IF
+            END DO
+            !ww(1:na) = harmonics%slm(1:na, iso)/grid_atom%sin_pol(1:na)**2
             dvth(1:nr, iso) = MATMUL(ww(1:na), vtau_h(1:na, 1:nr, ispin))
             dvts(1:nr, iso) = MATMUL(ww(1:na), vtau_s(1:na, 1:nr, ispin))
          END DO
@@ -1562,14 +1579,14 @@ CONTAINS
                               IF (l1 + l2 > lmax_expansion) CYCLE
 
                               matso_h(iso1, iso2) = matso_h(iso1, iso2) + my_CG(iso1, iso2, iso)* &
-                                                    DOT_PRODUCT(vth(1:nr, ispin), fgr(1:nr, l1, l2))
+                                                    DOT_PRODUCT(vth(1:nr, iso), fgr(1:nr, l1, l2))
                               matso_s(iso1, iso2) = matso_s(iso1, iso2) + my_CG(iso1, iso2, iso)* &
-                                                    DOT_PRODUCT(vts(1:nr, ispin), fgr(1:nr, l1, l2))
+                                                    DOT_PRODUCT(vts(1:nr, iso), fgr(1:nr, l1, l2))
                               ! d azimuthal
-                              matso_h(iso1, iso2) = matso_h(iso1, iso2) + REAL(mm1*mm2, dp)*my_CG(isom1, isom2, iso)* &
-                                                    DOT_PRODUCT(vth(1:nr, ispin), dgr(1:nr, l1 + l2))
-                              matso_s(iso1, iso2) = matso_s(iso1, iso2) + REAL(mm1*mm2, dp)*my_CG(isom1, isom2, iso)* &
-                                                    DOT_PRODUCT(vts(1:nr, ispin), dgr(1:nr, l1 + l2))
+                              matso_h(iso1, iso2) = matso_h(iso1, iso2) - REAL(mm1*mm2, dp)*my_CG(iso1, iso2, iso)* &
+                                                    DOT_PRODUCT(dvth(1:nr, iso), dgr(1:nr, l1 + l2))
+                              matso_s(iso1, iso2) = matso_s(iso1, iso2) - REAL(mm1*mm2, dp)*my_CG(iso1, iso2, iso)* &
+                                                    DOT_PRODUCT(dvts(1:nr, iso), dgr(1:nr, l1 + l2))
                            END DO
                         END DO
                      END IF
@@ -1582,9 +1599,9 @@ CONTAINS
                            l1 = indso(1, iso1)
                            l2 = indso(1, iso2)
                            matso_h(iso1, iso2) = matso_h(iso1, iso2) + my_dCG(iso1, iso2, iso)* &
-                                                 DOT_PRODUCT(dvth(1:nr, ispin), dgr(1:nr, l1 + l2))
+                                                 DOT_PRODUCT(vth(1:nr, iso), dgr(1:nr, l1 + l2))
                            matso_s(iso1, iso2) = matso_s(iso1, iso2) + my_dCG(iso1, iso2, iso)* &
-                                                 DOT_PRODUCT(dvts(1:nr, ispin), dgr(1:nr, l1 + l2))
+                                                 DOT_PRODUCT(vts(1:nr, iso), dgr(1:nr, l1 + l2))
                         END DO
                      END DO
 
