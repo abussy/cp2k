@@ -1453,7 +1453,8 @@ CONTAINS
                                                             vts
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: fgr
       REAL(dp), DIMENSION(:, :), POINTER                 :: zet
-      REAL(dp), DIMENSION(:, :, :), POINTER              :: my_CG, my_dCG
+      REAL(dp), DIMENSION(:, :, :), POINTER              :: my_CG
+      REAL(dp), DIMENSION(:, :, :, :), POINTER           :: my_dCG
       TYPE(grid_atom_type), POINTER                      :: grid_atom
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis
       TYPE(harmonics_atom_type), POINTER                 :: harmonics
@@ -1583,10 +1584,10 @@ CONTAINS
                               matso_s(iso1, iso2) = matso_s(iso1, iso2) + my_CG(iso1, iso2, iso)* &
                                                     DOT_PRODUCT(vts(1:nr, iso), fgr(1:nr, l1, l2))
                               ! d azimuthal
-                              matso_h(iso1, iso2) = matso_h(iso1, iso2) - REAL(mm1*mm2, dp)*my_CG(iso1, iso2, iso)* &
-                                                    DOT_PRODUCT(dvth(1:nr, iso), dgr(1:nr, l1 + l2))
-                              matso_s(iso1, iso2) = matso_s(iso1, iso2) - REAL(mm1*mm2, dp)*my_CG(iso1, iso2, iso)* &
-                                                    DOT_PRODUCT(dvts(1:nr, iso), dgr(1:nr, l1 + l2))
+                              !matso_h(iso1, iso2) = matso_h(iso1, iso2) - REAL(mm1*mm2, dp)*my_CG(iso1, iso2, iso)* &
+                              !                      DOT_PRODUCT(dvth(1:nr, iso), dgr(1:nr, l1 + l2))
+                              !matso_s(iso1, iso2) = matso_s(iso1, iso2) - REAL(mm1*mm2, dp)*my_CG(iso1, iso2, iso)* &
+                              !                      DOT_PRODUCT(dvts(1:nr, iso), dgr(1:nr, l1 + l2))
                            END DO
                         END DO
                      END IF
@@ -1598,10 +1599,14 @@ CONTAINS
 
                            l1 = indso(1, iso1)
                            l2 = indso(1, iso2)
-                           matso_h(iso1, iso2) = matso_h(iso1, iso2) + my_dCG(iso1, iso2, iso)* &
+                           matso_h(iso1, iso2) = matso_h(iso1, iso2) + my_dCG(1, iso1, iso2, iso)* &
                                                  DOT_PRODUCT(vth(1:nr, iso), dgr(1:nr, l1 + l2))
-                           matso_s(iso1, iso2) = matso_s(iso1, iso2) + my_dCG(iso1, iso2, iso)* &
+                           matso_s(iso1, iso2) = matso_s(iso1, iso2) + my_dCG(1, iso1, iso2, iso)* &
                                                  DOT_PRODUCT(vts(1:nr, iso), dgr(1:nr, l1 + l2))
+                           matso_h(iso1, iso2) = matso_h(iso1, iso2) + my_dCG(2, iso1, iso2, iso)* &
+                                                 DOT_PRODUCT(dvth(1:nr, iso), dgr(1:nr, l1 + l2))
+                           matso_s(iso1, iso2) = matso_s(iso1, iso2) + my_dCG(2, iso1, iso2, iso)* &
+                                                 DOT_PRODUCT(dvts(1:nr, iso), dgr(1:nr, l1 + l2))
                         END DO
                      END DO
 

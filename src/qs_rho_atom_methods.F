@@ -126,8 +126,8 @@ CONTAINS
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: CPCH_sphere, CPCS_sphere, dgg, gg, gg_lm1
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: vgg
       REAL(dp), DIMENSION(:, :), POINTER                 :: coeff, zet
-      REAL(dp), DIMENSION(:, :, :), POINTER              :: my_CG, my_dCG
-      REAL(dp), DIMENSION(:, :, :, :), POINTER           :: my_CG_dxyz
+      REAL(dp), DIMENSION(:, :, :), POINTER              :: my_CG
+      REAL(dp), DIMENSION(:, :, :, :), POINTER           :: my_CG_dxyz, my_dCG
       TYPE(grid_atom_type), POINTER                      :: grid_atom
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis
       TYPE(harmonics_atom_type), POINTER                 :: harmonics
@@ -359,15 +359,15 @@ CONTAINS
                                  rho_atom_set(iatom)%trho_rad_s(1, i)%r_coef(1:nr, iso) + &
                                  0.5_dp*gg(1:nr, l)*dd(1:nr)*CPCS_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
 
-                              rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) = &
-                                 rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) - &
-                                 0.5_dp*REAL(m1*m2, dp)*gg(1:nr, l)*CPCH_sphere(iso1, iso2)* &
-                                 my_CG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
+                              !rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) = &
+                              !   rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) - &
+                              !   0.5_dp*REAL(m1*m2, dp)*gg(1:nr, l)*CPCH_sphere(iso1, iso2)* &
+                              !   my_CG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
 
-                              rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) = &
-                                 rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) - &
-                                 0.5_dp*REAL(m1*m2, dp)*gg(1:nr, l)*CPCS_sphere(iso1, iso2)* &
-                                 my_CG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
+                              !rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) = &
+                              !   rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) - &
+                              !   0.5_dp*REAL(m1*m2, dp)*gg(1:nr, l)*CPCS_sphere(iso1, iso2)* &
+                              !   my_CG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
 
                            ENDDO ! icg
 
@@ -407,12 +407,22 @@ CONTAINS
                               rho_atom_set(iatom)%trho_rad_h(2, i)%r_coef(1:nr, iso) = &
                                  rho_atom_set(iatom)%trho_rad_h(2, i)%r_coef(1:nr, iso) + &
                                  0.5_dp*gg(1:nr, l)*CPCH_sphere(iso1, iso2)* &
-                                 my_dCG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
+                                 my_dCG(1, iso1, iso2, iso)/grid_atom%rad2(1:nr)
 
                               rho_atom_set(iatom)%trho_rad_s(2, i)%r_coef(1:nr, iso) = &
                                  rho_atom_set(iatom)%trho_rad_s(2, i)%r_coef(1:nr, iso) + &
                                  0.5_dp*gg(1:nr, l)*CPCS_sphere(iso1, iso2)* &
-                                 my_dCG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
+                                 my_dCG(1, iso1, iso2, iso)/grid_atom%rad2(1:nr)
+
+                              rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) = &
+                                 rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) + &
+                                 0.5_dp*gg(1:nr, l)*CPCH_sphere(iso1, iso2)* &
+                                 my_dCG(2, iso1, iso2, iso)/grid_atom%rad2(1:nr)
+
+                              rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) = &
+                                 rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) + &
+                                 0.5_dp*gg(1:nr, l)*CPCS_sphere(iso1, iso2)* &
+                                 my_dCG(2, iso1, iso2, iso)/grid_atom%rad2(1:nr)
                            END DO ! icg
                         ENDDO ! iso
 

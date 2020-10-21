@@ -35,8 +35,8 @@ MODULE qs_harmonics_atom
                                                 ngrid
       REAL(dp), DIMENSION(:, :), POINTER   :: a, slm
       REAL(dp), DIMENSION(:, :, :), POINTER   :: dslm, dslm_dxyz
-      REAL(dp), DIMENSION(:, :, :), POINTER   :: my_CG, my_dCG
-      REAL(dp), DIMENSION(:, :, :, :), POINTER :: my_CG_dxyz
+      REAL(dp), DIMENSION(:, :, :), POINTER   :: my_CG
+      REAL(dp), DIMENSION(:, :, :, :), POINTER :: my_CG_dxyz, my_dCG
       REAL(dp), DIMENSION(:, :, :, :), POINTER :: my_CG_dxyz_asym
       REAL(dp), DIMENSION(:), POINTER        :: slm_int
 
@@ -189,7 +189,7 @@ CONTAINS
       CALL reallocate(harmonics%my_CG, 1, maxs, 1, maxs, 1, max_s_harm)
       CALL reallocate(harmonics%my_CG_dxyz, 1, 3, 1, maxs, 1, maxs, 1, max_s_harm)
       CALL reallocate(harmonics%my_CG_dxyz_asym, 1, 3, 1, maxs, 1, maxs, 1, max_s_harm)
-      CALL reallocate(harmonics%my_dCG, 1, maxs, 1, maxs, 1, max_s_harm)
+      CALL reallocate(harmonics%my_dCG, 1, 3, 1, maxs, 1, maxs, 1, max_s_harm)
 
       DO i = 1, max_s_harm
          DO is1 = 1, maxs
@@ -373,6 +373,7 @@ CONTAINS
       ! Calculate the derivatives of the harmonics with respect of the 2 angles
       ! the first angle (polar) is acos(lebedev_grid(ll)%r(3))
       ! the second angle (azimutal) is atan(lebedev_grid(ll)%r(2)/lebedev_grid(ll)%r(1))
+      ! New: we express those in terms of cartesian derivatives
 !$OMP DO
       DO iso = 1, maxs
          l = indso(1, iso)
@@ -382,6 +383,16 @@ CONTAINS
             cin(2) = azi(ia)
             CALL dy_lm(cin, dylm, l, m)
             harmonics%dslm(:, ia, iso) = dylm(:)
+
+            !polar angle
+            harmonics%dslm(1, ia, iso) = dslm_dxyz(1, ia, iso)*COS(pol(ia))*COS(azi(ia)) + &
+                                         dslm_dxyz(2, ia, iso)*COS(pol(ia))*SIN(azi(ia)) - &
+                                         dslm_dxyz(3, ia, iso)*SIN(pol(ia))
+
+            !azimutal angle
+            harmonics%dslm(2, ia, iso) = -dslm_dxyz(1, ia, iso)*SIN(pol(ia))*SIN(azi(ia)) + &
+                                         dslm_dxyz(2, ia, iso)*SIN(pol(ia))*COS(azi(ia))
+
          END DO
       END DO
 !$OMP END DO
@@ -402,7 +413,12 @@ CONTAINS
                CALL y_lm(lebedev_grid(ll)%r, y, l, m)
 
                y(1:na) = y(1:na)*lebedev_grid(ll)%w(1:na)*harmonics%dslm(1, 1:na, is1)*harmonics%dslm(1, 1:na, is2)
-               harmonics%my_dCG(is1, is2, iso) = SUM(y(1:na))
+               harmonics%my_dCG(1, is1, is2, iso) = SUM(y(1:na))
+
+               CALL y_lm(lebedev_grid(ll)%r, y, l, m)
+
+               y(1:na) = y(1:na)*lebedev_grid(ll)%w(1:na)*harmonics%dslm(2, 1:na, is1)*harmonics%dslm(2, 1:na, is2)
+               harmonics%my_dCG(2, is1, is2, iso) = SUM(y(1:na))
             END DO
          END DO
       END DO
