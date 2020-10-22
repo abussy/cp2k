@@ -1790,8 +1790,6 @@ CONTAINS
                            use_data=REALDATA3D, in_space=REALSPACE, &
                            cr3d_ptr=deriv_data)
             NULLIFY (deriv_att%deriv_data)
-            PRINT *, ""
-            PRINT *, "In Vtau PW: ", SUM(vxc_tau(1)%pw%cr3d)*vxc_tau(1)%pw%pw_grid%dvol
          END IF
          DO ispin = 1, nspins
             CPASSERT(ASSOCIATED(vxc_tau(ispin)%pw))
