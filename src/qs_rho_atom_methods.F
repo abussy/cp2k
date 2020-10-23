@@ -124,7 +124,7 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf, o2nindex
       LOGICAL, ALLOCATABLE, DIMENSION(:, :)              :: done_vgg
       REAL(dp)                                           :: c1, c2, rho_h, rho_s, root_zet12, zet12
-      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: dd, erf_zet12, g1, g2, gg0, int1, int2
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: erf_zet12, g1, g2, gg0, int1, int2
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: CPCH_sphere, CPCS_sphere, dgg, gg, gg_lm1
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: vgg
       REAL(dp), DIMENSION(:, :), POINTER                 :: coeff, zet
@@ -136,6 +136,10 @@ CONTAINS
       TYPE(paw_proj_set_type), POINTER                   :: paw_proj
 
       CALL timeset(routineN, handle)
+
+      !Note on tau funtionals: need to take the Cartesian dot product of the gradient of 2 Gaussians
+      !     => we keep track of the direction (x,y,z) and separate the different cross terms
+      !        depending on their angular part dependencies. That is 3x3=9 terms in total
 
       NULLIFY (orb_basis)
       NULLIFY (harmonics, grid_atom)
@@ -171,7 +175,7 @@ CONTAINS
       ALLOCATE (g1(nr), g2(nr), gg0(nr), gg(nr, 0:2*maxl), dgg(nr, 0:2*maxl), gg_lm1(nr, 0:2*maxl))
       ALLOCATE (erf_zet12(nr), vgg(nr, 0:2*maxl, 0:indso(1, max_iso_not0)))
       ALLOCATE (done_vgg(0:2*maxl, 0:indso(1, max_iso_not0)))
-      ALLOCATE (dd(nr), int1(nr), int2(nr))
+      ALLOCATE (int1(nr), int2(nr))
       ALLOCATE (cg_list(2, nsoset(maxl)**2, max_s_harm), cg_n_list(max_s_harm), &
                 dacg_list(2, nsoset(maxl)**2, max_s_harm), dacg_n_list(max_s_harm), &
                 dbcg_list(2, nsoset(maxl)**2, max_s_harm), dbcg_n_list(max_s_harm), &
@@ -262,12 +266,11 @@ CONTAINS
                      DO l = lmin12 + 1, lmax12
                         gg(1:nr, l) = grid_atom%rad(1:nr)*gg(1:nr, l - 1)
                         gg_lm1(1:nr, l) = gg(1:nr, l - 1)
-                        dgg(1:nr, l - 1) = dgg(1:nr, l - 1) - 2.0_dp*(zet(ipgf1, iset1) &
-                                                                      + zet(ipgf2, iset2))*gg(1:nr, l)
+                        dgg(1:nr, l - 1) = -2.0_dp*(zet(ipgf1, iset1) + zet(ipgf2, iset2))*gg(1:nr, l)
 
                      END DO
-                     dgg(1:nr, lmax12) = dgg(1:nr, lmax12) - 2.0_dp*(zet(ipgf1, iset1) &
-                                                                     + zet(ipgf2, iset2))*grid_atom%rad(1:nr)*gg(1:nr, lmax12)
+                     dgg(1:nr, lmax12) = -2.0_dp*(zet(ipgf1, iset1) + &
+                                                  zet(ipgf2, iset2))*grid_atom%rad(1:nr)*gg(1:nr, lmax12)
 
                      c2 = SQRT(pi*pi*pi/(zet12*zet12*zet12))
 
@@ -326,10 +329,6 @@ CONTAINS
                               isom1 = soset(l1, -m1)
                               isom2 = soset(l2, -m2)
 
-                              !dd(1:nr) = REAL(l1*l2, dp)/grid_atom%rad2(1:nr) &
-                              !           - 2._dp*REAL(l1, dp)*zet(ipgf2, iset2) &
-                              !           - 2._dp*REAL(l2, dp)*zet(ipgf1, iset1) &
-                              !           + 4._dp*zet(ipgf1, iset1)*zet(ipgf2, iset2)*grid_atom%rad2(1:nr)
                               l = indso(1, iso1) + indso(1, iso2)
                               CPASSERT(l <= lmax_expansion)
 
@@ -357,7 +356,7 @@ CONTAINS
                                  rho_atom_set(iatom)%vrho_rad_s(i)%r_coef(1:nr, iso) + &
                                  vgg(1:nr, l, l_iso)*CPCS_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
 
-                              !tau functionals, terms in Ylm*Ylm, to be multiplied by x^2
+                              !tau functionals, terms in Ylm*Ylm, to be multiplied by x^2 comp. of unit vector
                               DO dir = 1, 3
                                  rho_atom_set(iatom)%trho_rad_h(1, dir, i)%r_coef(1:nr, iso) = &
                                     rho_atom_set(iatom)%trho_rad_h(1, dir, i)%r_coef(1:nr, iso) + &
@@ -369,24 +368,6 @@ CONTAINS
                                     2.0_dp*zet(ipgf1, iset1)*zet(ipgf2, iset2)*grid_atom%rad2(1:nr)* &
                                     gg(1:nr, l)*CPCS_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
                               END DO
-
-                              !rho_atom_set(iatom)%trho_rad_h(1, i)%r_coef(1:nr, iso) = &
-                              !   rho_atom_set(iatom)%trho_rad_h(1, i)%r_coef(1:nr, iso) + &
-                              !   0.5_dp*gg(1:nr, l)*dd(1:nr)*CPCH_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
-
-                              !rho_atom_set(iatom)%trho_rad_s(1, i)%r_coef(1:nr, iso) = &
-                              !   rho_atom_set(iatom)%trho_rad_s(1, i)%r_coef(1:nr, iso) + &
-                              !   0.5_dp*gg(1:nr, l)*dd(1:nr)*CPCS_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
-
-                              !rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) = &
-                              !   rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) - &
-                              !   0.5_dp*REAL(m1*m2, dp)*gg(1:nr, l)*CPCH_sphere(iso1, iso2)* &
-                              !   my_CG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
-
-                              !rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) = &
-                              !   rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) - &
-                              !   0.5_dp*REAL(m1*m2, dp)*gg(1:nr, l)*CPCS_sphere(iso1, iso2)* &
-                              !   my_CG(iso1, iso2, iso)/grid_atom%rad2(1:nr)
 
                            ENDDO ! icg
 
@@ -412,7 +393,7 @@ CONTAINS
 
                         ENDDO ! iso
 
-                        !tau functionals, terms in Ylm * dYlm/dx, to be multiplied by x
+                        !tau functionals, terms in Ylm * dYlm/dx, to be multiplied by x comp. of unit vector
                         DO iso = 1, max_iso_not0
                            l_iso = indso(1, iso)
                            DO icg = 1, dbcg_n_list(iso)
@@ -469,39 +450,6 @@ CONTAINS
                               ENDDO !dir
                            ENDDO !icg
                         ENDDO !iso
-
-                        !Expansion for tau functionals (polar angle term)
-                        !We ignore the contributions iso > max_iso_not0 (should be dmax_iso_not0)
-
-                        !DO iso = 1, max_iso_not0 !dbmax_iso_not0_local
-                        !   l_iso = indso(1, iso)
-                        !   DO icg = 1, dbcg_n_list(iso)
-                        !      iso1 = dbcg_list(1, icg, iso)
-                        !      iso2 = dbcg_list(2, icg, iso)
-
-                        !      l = indso(1, iso1) + indso(1, iso2)
-                        !      CPASSERT(l <= lmax_expansion)
-                        !      rho_atom_set(iatom)%trho_rad_h(2, i)%r_coef(1:nr, iso) = &
-                        !         rho_atom_set(iatom)%trho_rad_h(2, i)%r_coef(1:nr, iso) + &
-                        !         0.5_dp*gg(1:nr, l)*CPCH_sphere(iso1, iso2)* &
-                        !         my_dCG(1, iso1, iso2, iso)/grid_atom%rad2(1:nr)
-
-                        !      rho_atom_set(iatom)%trho_rad_s(2, i)%r_coef(1:nr, iso) = &
-                        !         rho_atom_set(iatom)%trho_rad_s(2, i)%r_coef(1:nr, iso) + &
-                        !         0.5_dp*gg(1:nr, l)*CPCS_sphere(iso1, iso2)* &
-                        !         my_dCG(1, iso1, iso2, iso)/grid_atom%rad2(1:nr)
-
-                        !      rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) = &
-                        !         rho_atom_set(iatom)%trho_rad_h(3, i)%r_coef(1:nr, iso) + &
-                        !         0.5_dp*gg(1:nr, l)*CPCH_sphere(iso1, iso2)* &
-                        !         my_dCG(2, iso1, iso2, iso)/grid_atom%rad2(1:nr)
-
-                        !      rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) = &
-                        !         rho_atom_set(iatom)%trho_rad_s(3, i)%r_coef(1:nr, iso) + &
-                        !         0.5_dp*gg(1:nr, l)*CPCS_sphere(iso1, iso2)* &
-                        !         my_dCG(2, iso1, iso2, iso)/grid_atom%rad2(1:nr)
-                        !   END DO ! icg
-                        !ENDDO ! iso
 
                      ENDDO ! i
                   ENDDO ! iat

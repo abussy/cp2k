@@ -17,8 +17,7 @@ MODULE qs_harmonics_atom
                                               nso,&
                                               nsoset
    USE orbital_transformation_matrices, ONLY: orbtramat
-   USE spherical_harmonics,             ONLY: dy_lm,&
-                                              y_lm
+   USE spherical_harmonics,             ONLY: y_lm
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -34,7 +33,7 @@ MODULE qs_harmonics_atom
                                                 damax_iso_not0, &
                                                 ngrid
       REAL(dp), DIMENSION(:, :), POINTER   :: a, slm
-      REAL(dp), DIMENSION(:, :, :), POINTER   :: dslm, dslm_dxyz
+      REAL(dp), DIMENSION(:, :, :), POINTER   :: dslm_dxyz
       REAL(dp), DIMENSION(:, :, :), POINTER   :: my_CG
       REAL(dp), DIMENSION(:, :, :, :), POINTER :: my_CG_dxyz, my_dCG, my_ddCG
       REAL(dp), DIMENSION(:, :, :, :), POINTER :: my_CG_dxyz_asym
@@ -76,7 +75,6 @@ CONTAINS
       harmonics%ngrid = 0
 
       NULLIFY (harmonics%slm)
-      NULLIFY (harmonics%dslm)
       NULLIFY (harmonics%dslm_dxyz)
       NULLIFY (harmonics%slm_int)
       NULLIFY (harmonics%my_CG)
@@ -101,10 +99,6 @@ CONTAINS
 
          IF (ASSOCIATED(harmonics%slm)) THEN
             DEALLOCATE (harmonics%slm)
-         ENDIF
-
-         IF (ASSOCIATED(harmonics%dslm)) THEN
-            DEALLOCATE (harmonics%dslm)
          ENDIF
 
          IF (ASSOCIATED(harmonics%dslm_dxyz)) THEN
@@ -206,9 +200,8 @@ CONTAINS
 
       ! allocate and calculate the spherical harmonics LM for this grid
       ! and their derivatives
-      NULLIFY (harmonics%slm, harmonics%dslm, harmonics%dslm_dxyz, harmonics%a, harmonics%slm_int)
+      NULLIFY (harmonics%slm, harmonics%dslm_dxyz, harmonics%a, harmonics%slm_int)
       CALL reallocate(harmonics%slm, 1, na, 1, max_s_harm)
-      CALL reallocate(harmonics%dslm, 1, 2, 1, na, 1, maxs)
       CALL reallocate(harmonics%dslm_dxyz, 1, 3, 1, na, 1, max_s_harm)
       CALL reallocate(harmonics%a, 1, 3, 1, na)
       CALL reallocate(harmonics%slm_int, 1, max_s_harm)
@@ -377,35 +370,8 @@ CONTAINS
       END DO ! iso1
 !$OMP END DO
 
-      ! Calculate the derivatives of the harmonics with respect of the 2 angles
-      ! the first angle (polar) is acos(lebedev_grid(ll)%r(3))
-      ! the second angle (azimutal) is atan(lebedev_grid(ll)%r(2)/lebedev_grid(ll)%r(1))
-      ! New: we express those in terms of cartesian derivatives
-!$OMP DO
-      DO iso = 1, maxs
-         l = indso(1, iso)
-         m = indso(2, iso)
-         DO ia = 1, na
-            cin(1) = pol(ia)
-            cin(2) = azi(ia)
-            CALL dy_lm(cin, dylm, l, m)
-            harmonics%dslm(:, ia, iso) = dylm(:)
-
-            !polar angle
-            harmonics%dslm(1, ia, iso) = dslm_dxyz(1, ia, iso)*COS(pol(ia))*COS(azi(ia)) + &
-                                         dslm_dxyz(2, ia, iso)*COS(pol(ia))*SIN(azi(ia)) - &
-                                         dslm_dxyz(3, ia, iso)*SIN(pol(ia))
-
-            !azimutal angle
-            harmonics%dslm(2, ia, iso) = -dslm_dxyz(1, ia, iso)*SIN(pol(ia))*SIN(azi(ia)) + &
-                                         dslm_dxyz(2, ia, iso)*SIN(pol(ia))*COS(azi(ia))
-
-         END DO
-      END DO
-!$OMP END DO
-
-      ! CG coefficients for the tau functionals, namely dYl1m1/dx * dYl2m2/dx and Yl1m1 * dYl2m2
-      ! name my_ddCG and my_dCG
+      ! CG coefficients for the tau functionals, namely dYl1m1/dx * dYl2m2/dx and Yl1m1 * dYl2m2/dx
+      ! named my_ddCG and my_dCG (derivative * derivative and normal * derivative)
 
 !$OMP DO COLLAPSE(3)
       DO iso1 = 1, maxs
