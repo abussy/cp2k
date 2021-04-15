@@ -771,6 +771,7 @@ CONTAINS
 
 !     final qs_loc_env initialization. Impose Berry operator
       qs_loc_env%localized_wfn_control%operator_type = op_loc_berry
+      qs_loc_env%localized_wfn_control%max_iter = 25000
       IF (.NOT. xas_tdp_control%do_loc) THEN
          qs_loc_env%localized_wfn_control%localization_method = do_loc_none
       ELSE
@@ -957,6 +958,12 @@ CONTAINS
 
             CPABORT("Both singlet and triplet excitations are needed for SOC")
          END IF
+      END IF
+
+      !Warn against using E_RANGE with SOC
+      IF (xas_tdp_control%do_soc .AND. xas_tdp_control%e_range > 0.0_dp) THEN
+         CPWARN("Using the E_RANGE and SOC keywords together may lead to crashes. "// &
+                "For safety use the N_EXCITED keyword instead.")
       END IF
 
       !TDA, full-TDDFT and diagonalization
@@ -2892,6 +2899,12 @@ CONTAINS
             END IF
          END IF
 
+      END IF
+
+      !In case of periodic system, warn that IPs cannot be trusted because of the lack of a proper reference
+      IF (xas_tdp_control%is_periodic=.TRUE.) THEN
+         CPWARN("GW2X IPs in PBCs cannot be trusted without a proper potential reference. "// &
+                "GW2X shifts are well defined.")
       END IF
 
    END SUBROUTINE print_xps
