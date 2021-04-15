@@ -1827,14 +1827,9 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: eigenvalues
 
       COMPLEX(KIND=dp), DIMENSION(:), ALLOCATABLE        :: work
-      COMPLEX(KIND=dp), DIMENSION(:, :), ALLOCATABLE     :: m
       INTEGER                                            :: info, liwork, lrwork, lwork, n
       INTEGER, DIMENSION(:), ALLOCATABLE                 :: iwork
       REAL(KIND=dp), DIMENSION(:), ALLOCATABLE           :: rwork
-
-      CPASSERT(ASSOCIATED(matrix))
-      CPASSERT(ASSOCIATED(eigenvectors))
-      CPASSERT(ASSOCIATED(eigenvalues))
 
       eigenvectors(:, :) = matrix(:, :)
 

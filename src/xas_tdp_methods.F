@@ -962,8 +962,7 @@ CONTAINS
 
       !Warn against using E_RANGE with SOC
       IF (xas_tdp_control%do_soc .AND. xas_tdp_control%e_range > 0.0_dp) THEN
-         CPWARN("Using the E_RANGE and SOC keywords together may lead to crashes. "// &
-                "For safety use the N_EXCITED keyword instead.")
+         CPWARN("Using E_RANGE and SOC together may lead to crashes, use N_EXCITED for safety.")
       END IF
 
       !TDA, full-TDDFT and diagonalization
@@ -2865,46 +2864,44 @@ CONTAINS
       ALLOCATE (IPs(SIZE(donor_state%gw2x_evals, 1), SIZE(donor_state%gw2x_evals, 2)))
       IPs(:, :) = donor_state%gw2x_evals(:, :)
 
-      !Apply SOC splitting
-      IF (donor_state%ndo_mo > 1) THEN
-         CALL get_soc_splitting(soc_shifts, donor_state, xas_tdp_env, xas_tdp_control, qs_env)
-         IPs(:, :) = IPs(:, :) + soc_shifts
+      !IPs in PBCs cannot be trusted because of a lack of a potential reference
+      IF (.NOT. xas_tdp_control%is_periodic) THEN
 
-         IF (output_unit > 0) THEN
-            WRITE (output_unit, FMT="(/,T5,A,F23.6)") &
-               "Ionization potentials for XPS (GW2X + SOC): ", -IPs(1, 1)*evolt
+         !Apply SOC splitting
+         IF (donor_state%ndo_mo > 1) THEN
+            CALL get_soc_splitting(soc_shifts, donor_state, xas_tdp_env, xas_tdp_control, qs_env)
+            IPs(:, :) = IPs(:, :) + soc_shifts
 
-            DO ispin = 1, nspins
-               DO ido_mo = 1, donor_state%ndo_mo
+            IF (output_unit > 0) THEN
+               WRITE (output_unit, FMT="(/,T5,A,F23.6)") &
+                  "Ionization potentials for XPS (GW2X + SOC): ", -IPs(1, 1)*evolt
 
-                  IF (ispin == 1 .AND. ido_mo == 1) CYCLE
+               DO ispin = 1, nspins
+                  DO ido_mo = 1, donor_state%ndo_mo
 
-                  WRITE (output_unit, FMT="(T5,A,F23.6)") &
-                     "                                            ", -IPs(ido_mo, ispin)*evolt
+                     IF (ispin == 1 .AND. ido_mo == 1) CYCLE
 
+                     WRITE (output_unit, FMT="(T5,A,F23.6)") &
+                        "                                            ", -IPs(ido_mo, ispin)*evolt
+
+                  END DO
                END DO
-            END DO
-         END IF
-
-      ELSE
-
-         ! No SOC, only 1 donor MO per spin
-         IF (output_unit > 0) THEN
-            WRITE (output_unit, FMT="(/,T5,A,F29.6)") &
-               "Ionization potentials for XPS (GW2X): ", -IPs(1, 1)*evolt
-
-            IF (nspins == 2) THEN
-               WRITE (output_unit, FMT="(T5,A,F29.6)") &
-                  "                                      ", -IPs(1, 2)*evolt
             END IF
+
+         ELSE
+
+            ! No SOC, only 1 donor MO per spin
+            IF (output_unit > 0) THEN
+               WRITE (output_unit, FMT="(/,T5,A,F29.6)") &
+                  "Ionization potentials for XPS (GW2X): ", -IPs(1, 1)*evolt
+
+               IF (nspins == 2) THEN
+                  WRITE (output_unit, FMT="(T5,A,F29.6)") &
+                     "                                      ", -IPs(1, 2)*evolt
+               END IF
+            END IF
+
          END IF
-
-      END IF
-
-      !In case of periodic system, warn that IPs cannot be trusted because of the lack of a proper reference
-      IF (xas_tdp_control%is_periodic=.TRUE.) THEN
-         CPWARN("GW2X IPs in PBCs cannot be trusted without a proper potential reference. "// &
-                "GW2X shifts are well defined.")
       END IF
 
    END SUBROUTINE print_xps
