@@ -20,6 +20,8 @@ MODULE xas_tdp_methods
         allocate_sto_basis_set, create_gto_from_sto_basis, deallocate_gto_basis_set, &
         deallocate_sto_basis_set, get_gto_basis_set, gto_basis_set_type, init_orb_basis_set, &
         set_sto_basis_set, srules, sto_basis_set_type
+   USE bibliography,                    ONLY: Bussy2021,&
+                                              cite_reference
    USE cell_types,                      ONLY: cell_type,&
                                               pbc
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
@@ -180,6 +182,8 @@ CONTAINS
             "!    Starting TDDFPT driven X-rays absorption spectroscopy calculations     !", &
             "!===========================================================================!"
       END IF
+
+      CALL cite_reference(Bussy2021)
 
 !  Check whether this is a restart calculation, i.e. is a restart file is provided
       CALL section_vals_val_get(xas_tdp_section, "RESTART_FROM_FILE", n_rep_val=n_rep)
