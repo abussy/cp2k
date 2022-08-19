@@ -21,26 +21,39 @@ MODULE qs_tensors
    USE block_p_types,                   ONLY: block_p_type
    USE cell_types,                      ONLY: cell_type
    USE cp_array_utils,                  ONLY: cp_2d_r_p_type
+   USE cp_blacs_env,                    ONLY: BLACS_GRID_SQUARE,&
+                                              cp_blacs_env_create,&
+                                              cp_blacs_env_release,&
+                                              cp_blacs_env_type
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_cp2k_link,              ONLY: cp_dbcsr_alloc_block_from_nbl
+   USE cp_dbcsr_operations,             ONLY: cp_dbcsr_dist2d_to_dist
    USE cp_files,                        ONLY: close_file,&
                                               open_file
+   USE cp_fm_types,                     ONLY: cp_fm_type
+   USE cp_para_env,                     ONLY: cp_para_env_release,&
+                                              cp_para_env_split
    USE cp_para_types,                   ONLY: cp_para_env_type
-   USE dbcsr_api,                       ONLY: dbcsr_filter,&
-                                              dbcsr_finalize,&
-                                              dbcsr_get_block_p,&
-                                              dbcsr_get_matrix_type,&
-                                              dbcsr_has_symmetry,&
-                                              dbcsr_type,&
-                                              dbcsr_type_antisymmetric,&
-                                              dbcsr_type_no_symmetry
+   USE dbcsr_api,                       ONLY: &
+        dbcsr_create, dbcsr_desymmetrize, dbcsr_distribution_release, dbcsr_distribution_type, &
+        dbcsr_filter, dbcsr_finalize, dbcsr_get_block_p, dbcsr_get_info, dbcsr_get_matrix_type, &
+        dbcsr_has_symmetry, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
+        dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_p_type, &
+        dbcsr_release, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, &
+        dbcsr_type_symmetric
    USE dbt_api,                         ONLY: &
-        dbt_blk_sizes, dbt_clear, dbt_copy, dbt_create, dbt_destroy, dbt_filter, dbt_get_block, &
-        dbt_get_info, dbt_get_num_blocks, dbt_get_nze_total, dbt_get_stored_coordinates, &
+        dbt_blk_sizes, dbt_clear, dbt_copy, dbt_create, dbt_destroy, dbt_distribution_destroy, &
+        dbt_distribution_new, dbt_distribution_type, dbt_filter, dbt_get_block, dbt_get_info, &
+        dbt_get_num_blocks, dbt_get_nze_total, dbt_get_stored_coordinates, &
         dbt_iterator_next_block, dbt_iterator_num_blocks, dbt_iterator_start, dbt_iterator_stop, &
-        dbt_iterator_type, dbt_ndims, dbt_put_block, dbt_reserve_blocks, dbt_type
-   USE distribution_1d_types,           ONLY: distribution_1d_type
-   USE distribution_2d_types,           ONLY: distribution_2d_type
+        dbt_iterator_type, dbt_ndims, dbt_pgrid_create, dbt_pgrid_destroy, dbt_pgrid_type, &
+        dbt_put_block, dbt_reserve_blocks, dbt_type
+   USE distribution_1d_types,           ONLY: distribution_1d_release,&
+                                              distribution_1d_type
+   USE distribution_2d_types,           ONLY: distribution_2d_release,&
+                                              distribution_2d_type
+   USE distribution_methods,            ONLY: distribute_molecules_1d,&
+                                              distribute_molecules_2d
    USE gamma,                           ONLY: init_md_ftable
    USE hfx_compression_methods,         ONLY: hfx_add_mult_cache_elements,&
                                               hfx_add_single_cache_element,&
@@ -74,12 +87,25 @@ MODULE qs_tensors
         cp_libint_cleanup_2eri, cp_libint_cleanup_2eri1, cp_libint_cleanup_3eri, &
         cp_libint_cleanup_3eri1, cp_libint_init_2eri, cp_libint_init_2eri1, cp_libint_init_3eri, &
         cp_libint_init_3eri1, cp_libint_set_contrdepth, cp_libint_t
+   USE molecule_kind_types,             ONLY: molecule_kind_type
    USE molecule_types,                  ONLY: molecule_type
+   USE mp2_eri_gpw,                     ONLY: cleanup_gpw,&
+                                              mp2_eri_3c_integrate_gpw,&
+                                              prepare_gpw
+   USE mp2_types,                       ONLY: mp2_type
    USE orbital_pointers,                ONLY: ncoset
+   USE particle_methods,                ONLY: get_particle_set
    USE particle_types,                  ONLY: particle_type
+   USE pw_env_types,                    ONLY: pw_env_type
+   USE pw_poisson_types,                ONLY: pw_poisson_type
+   USE pw_pool_types,                   ONLY: pw_pool_type
+   USE pw_types,                        ONLY: pw_p_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
-   USE qs_kind_types,                   ONLY: qs_kind_type
+   USE qs_integral_utils,               ONLY: basis_set_list_setup
+   USE qs_interactions,                 ONLY: init_interaction_radii
+   USE qs_kind_types,                   ONLY: get_qs_kind,&
+                                              qs_kind_type
    USE qs_neighbor_list_types,          ONLY: &
         get_iterator_info, get_neighbor_list_set_p, neighbor_list_iterate, &
         neighbor_list_iterator_create, neighbor_list_iterator_p_type, &
@@ -96,6 +122,7 @@ MODULE qs_tensors
         symmetrik_ik
    USE t_c_g0,                          ONLY: get_lmax_init,&
                                               init
+   USE task_list_types,                 ONLY: task_list_type
    USE util,                            ONLY: get_limit
 
 !$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num
@@ -112,7 +139,7 @@ MODULE qs_tensors
              neighbor_list_3c_iterator_destroy, get_3c_iterator_info, build_3c_integrals, &
              build_2c_neighbor_lists, build_2c_integrals, cutoff_screen_factor, &
              get_tensor_occupancy, compress_tensor, decompress_tensor, &
-             build_3c_derivatives, build_2c_derivatives
+             build_3c_derivatives, build_2c_derivatives, build_3c_integrals_gpw
 
    TYPE one_dim_int_array
       INTEGER, DIMENSION(:), ALLOCATABLE    :: array
@@ -1725,7 +1752,443 @@ CONTAINS
       CALL timestop(handle)
    END SUBROUTINE build_3c_derivatives
 
-   ! **************************************************************************************************
+! **************************************************************************************************
+!> \brief A test routine to check if GPW integrals can be viable in RI-HFX
+!> \param t3c ...
+!> \param filter_eps ...
+!> \param qs_env ...
+!> \param nl_3c ...
+!> \param basis_i ...
+!> \param basis_j ...
+!> \param basis_k ...
+!> \param potential_parameter ...
+! **************************************************************************************************
+   SUBROUTINE build_3c_integrals_gpw(t3c, filter_eps, qs_env, &
+                                     nl_3c, basis_i, basis_j, basis_k, &
+                                     potential_parameter)
+
+      TYPE(dbt_type), DIMENSION(:, :), INTENT(INOUT)     :: t3c
+      REAL(KIND=dp), INTENT(IN)                          :: filter_eps
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(neighbor_list_3c_type), INTENT(INOUT)         :: nl_3c
+      TYPE(gto_basis_set_p_type), DIMENSION(:)           :: basis_i, basis_j, basis_k
+      TYPE(libint_potential_type), INTENT(IN)            :: potential_parameter
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_3c_integrals_gpw'
+
+      INTEGER :: blacs_grid_layout, blk, color, dims(3), group_size, handle, handle2, i, i_RI, &
+         iatom, jatom, katom, lb_RI, map_1(1), map_2(2), natom, ngroup, pdims(3), ub_RI
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsize_i, bsize_j, bsize_k, dist_i
+      INTEGER, DIMENSION(:), POINTER                     :: dist_mu, dist_nu
+      LOGICAL                                            :: afound, blacs_repeatable, pfound
+      REAL(dp)                                           :: cutoff_old, fac, relative_cutoff_old
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: e_cutoff_old, wf_vector
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: ablock
+      REAL(dp), DIMENSION(:, :), POINTER                 :: pblock
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(cell_type), POINTER                           :: cell
+      TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_ext
+      TYPE(cp_fm_type), POINTER                          :: cp_fm_dummy
+      TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_ext
+      TYPE(dbcsr_iterator_type)                          :: iter
+      TYPE(dbcsr_p_type)                                 :: mat_munu
+      TYPE(dbcsr_type)                                   :: mat_munu_desymm
+      TYPE(dbt_distribution_type)                        :: dist
+      TYPE(dbt_pgrid_type)                               :: pgrid
+      TYPE(dbt_type)                                     :: t3c_tmp
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(local_atoms_type), ALLOCATABLE, DIMENSION(:)  :: atom2d
+      TYPE(molecule_kind_type), DIMENSION(:), POINTER    :: molecule_kind_set
+      TYPE(molecule_type), DIMENSION(:), POINTER         :: molecule_set
+      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
+         POINTER                                         :: sab_orb_ext
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(pw_env_type), POINTER                         :: pw_env_ext
+      TYPE(pw_p_type)                                    :: pot_g, psi_L, rho_g, rho_r
+      TYPE(pw_poisson_type), POINTER                     :: poisson_env
+      TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(task_list_type), POINTER                      :: task_list_ext
+
+      NULLIFY (para_env, para_env_ext, blacs_env_ext, dft_control, atomic_kind_set, qs_kind_set, &
+               molecule_kind_set, molecule_set, particle_set, cell, sab_orb_ext, dist_mu, dist_mu, &
+               pw_env_ext, poisson_env, auxbas_pw_pool, cp_fm_dummy, pblock)
+
+      CALL timeset(routineN, handle)
+
+      CALL get_qs_env(qs_env, para_env=para_env, dft_control=dft_control, atomic_kind_set=atomic_kind_set, &
+                      qs_kind_set=qs_kind_set, molecule_kind_set=molecule_kind_set, molecule_set=molecule_set, &
+                      particle_set=particle_set, cell=cell, natom=natom)
+
+      !Best route of action, for now, seems to be the creation of an intermediate tensor that follows
+      !the distribution of GPW => the cummunicator is split on subcomms, each subcomm comes with
+      !a matrix ditribution => create a tensor with the corresponding pdims and hope that works
+      !TODO: if everything works and we go ahead with it, might want to the the memory cut on RI atom
+
+      !For now, we assume the tensor is RI x AO x AO
+      CALL dbt_get_info(t3c(1, 1), pdims=pdims, nblks_total=dims)
+      ngroup = pdims(1)
+      group_size = para_env%num_pe/ngroup
+      color = para_env%mepos/group_size
+      CALL cp_para_env_split(para_env_ext, para_env, color)
+
+      blacs_grid_layout = BLACS_GRID_SQUARE
+      blacs_repeatable = .TRUE.
+      CALL cp_blacs_env_create(blacs_env_ext, para_env_ext, &
+                               blacs_grid_layout, &
+                               blacs_repeatable)
+
+      CALL create_mat_munu(mat_munu, qs_env, qs_env%mp2_env, dft_control, atomic_kind_set, qs_kind_set, &
+                           atom2d, molecule_kind_set, molecule_set, sab_orb_ext, particle_set, cell, &
+                           blacs_env_ext)
+      CALL dbcsr_create(matrix=mat_munu_desymm, template=mat_munu%matrix, matrix_type=dbcsr_type_no_symmetry)
+
+      !Create a tmp tensor to get matching dists
+      map_1 = [1]
+      map_2 = [2, 3]
+      !pdims = [ngroup, group_size, 1]
+      CALL dbt_pgrid_create(para_env%group, pdims, pgrid)
+
+      ALLOCATE (dist_i(dims(1)))
+      dist_i(:) = (/(MODULO(i, ngroup), i=0, dims(1) - 1)/) !compatible with sub-comm color
+      CALL dbcsr_get_info(mat_munu%matrix, proc_row_dist=dist_mu, proc_col_dist=dist_nu)
+      CALL dbt_distribution_new(dist, pgrid, dist_i, dist_mu, dist_nu)
+
+      ALLOCATE (bsize_i(dims(1)))
+      ALLOCATE (bsize_j(dims(2)))
+      ALLOCATE (bsize_k(dims(3)))
+      CALL dbt_get_info(t3c(1, 1), blk_size_1=bsize_i, blk_size_2=bsize_j, blk_size_3=bsize_k)
+
+      CALL dbt_create(t3c_tmp, "TEST", dist, map_1, map_2, bsize_i, bsize_j, bsize_k)
+      !Note: that all seems to work in terms of dsitributions, provided that we desymmetrize all of it
+
+      !reserve blocks
+      CALL alloc_block_3c(t3c, nl_3c, basis_i, basis_j, basis_k, qs_env, potential_parameter)
+      CALL dbt_copy(t3c(1, 1), t3c_tmp, move_data=.TRUE.)
+
+      !TODO: for now use a symmetric sab_orb and task_list because required by integrate_v_rspace
+      !      this leads to using dbcsr_desymmetrize many times... need to check the cost of it
+      !      and see if we can maybe create a non-symmetric task_list
+      CALL prepare_gpw(qs_env, dft_control, e_cutoff_old, cutoff_old, relative_cutoff_old, para_env_ext, pw_env_ext, &
+                       auxbas_pw_pool, poisson_env, task_list_ext, rho_r, rho_g, pot_g, psi_L, sab_orb_ext)
+
+      !Loop over the RI basis elements and integrate
+      ALLOCATE (wf_vector(SUM(bsize_i(:))))
+      DO iatom = 1, natom
+
+         !only act if on correct sub-communicator
+         IF (dist_i(iatom) .NE. color) CYCLE
+
+         lb_RI = SUM(bsize_i(1:iatom - 1))
+         ub_RI = lb_RI + bsize_i(iatom)
+         DO i_RI = lb_RI + 1, ub_RI
+
+            wf_vector = 0.0_dp
+            wf_vector(i_RI) = 1.0_dp
+
+            CALL timeset("HFX_actual_integ", handle2)
+            CALL mp2_eri_3c_integrate_gpw(cp_fm_dummy, psi_L, rho_g, atomic_kind_set, qs_kind_set, cell, &
+                                          dft_control, particle_set, pw_env_ext, wf_vector, poisson_env, rho_r, &
+                                          pot_g, potential_parameter, mat_munu, qs_env, task_list_ext)
+            CALL timestop(handle2)
+            CALL dbcsr_filter(mat_munu%matrix, filter_eps)
+            CALL timeset("HFX_desymm", handle2)
+            CALL dbcsr_desymmetrize(mat_munu%matrix, mat_munu_desymm)
+            CALL timestop(handle2)
+
+            !DBCSR iterator on mat_munu, only take upper diagonal elements and factor 0.5 on diag, put in t3c_tmp
+            CALL timeset("HFX_blk_copy", handle2)
+            CALL dbcsr_iterator_start(iter, mat_munu_desymm)
+            DO WHILE (dbcsr_iterator_blocks_left(iter))
+               CALL dbcsr_iterator_next_block(iter, row=jatom, column=katom, blk=blk)
+
+               fac = 1.0_dp
+               IF (jatom == katom) fac = 0.5_dp
+
+               CALL dbcsr_get_block_p(mat_munu_desymm, jatom, katom, pblock, pfound)
+               IF (pfound) THEN
+
+                  CALL dbt_get_block(t3c_tmp, [iatom, jatom, katom], ablock, afound)
+
+                  IF (afound) THEN
+
+                     ablock(i_RI - lb_RI, :, :) = fac*pblock(:, :)
+                     CALL dbt_put_block(t3c_tmp, [iatom, jatom, katom], &
+                                        [SIZE(ablock, 1), SIZE(ablock, 2), SIZE(ablock, 3)], ablock)
+
+                     DEALLOCATE (ablock)
+                  END IF
+               END IF !pfound
+
+            END DO !iterator
+            CALL dbcsr_iterator_stop(iter)
+            CALL timestop(handle2)
+
+         END DO !i_RI
+      END DO !iatom
+
+      CALL dbt_copy(t3c_tmp, t3c(1, 1), move_data=.TRUE.)
+
+      CALL cleanup_gpw(qs_env, e_cutoff_old, cutoff_old, relative_cutoff_old, para_env_ext, pw_env_ext, &
+                       task_list_ext, auxbas_pw_pool, rho_r, rho_g, pot_g, psi_L)
+
+      CALL dbt_destroy(t3c_tmp)
+      CALL dbt_distribution_destroy(dist)
+      CALL dbt_pgrid_destroy(pgrid)
+
+      CALL release_neighbor_list_sets(sab_orb_ext)
+      CALL cp_blacs_env_release(blacs_env_ext)
+      CALL cp_para_env_release(para_env_ext)
+
+      CALL dbcsr_release(mat_munu%matrix)
+      CALL dbcsr_release(mat_munu_desymm)
+      DEALLOCATE (mat_munu%matrix)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE build_3c_integrals_gpw
+
+! TODO: for now, and just for checks, this is just a copy from mp2_gpw.F
+! **************************************************************************************************
+!> \brief Encapsulate the building of dbcsr_matrix mat_munu
+!> \param mat_munu ...
+!> \param qs_env ...
+!> \param mp2_env ...
+!> \param dft_control ...
+!> \param atomic_kind_set ...
+!> \param qs_kind_set ...
+!> \param atom2d ...
+!> \param molecule_kind_set ...
+!> \param molecule_set ...
+!> \param sab_orb_sub ...
+!> \param particle_set ...
+!> \param cell ...
+!> \param blacs_env_sub ...
+!> \param do_ri_aux_basis ...
+!> \param do_mixed_basis ...
+!> \param group_size_prim ...
+!> \param do_im_time ...
+!> \author Jan Wilhelm, code by Mauro Del Ben
+! **************************************************************************************************
+   SUBROUTINE create_mat_munu(mat_munu, qs_env, mp2_env, dft_control, atomic_kind_set, qs_kind_set, &
+                              atom2d, molecule_kind_set, &
+                              molecule_set, sab_orb_sub, particle_set, cell, blacs_env_sub, &
+                              do_ri_aux_basis, do_mixed_basis, group_size_prim, do_im_time)
+
+      TYPE(dbcsr_p_type), INTENT(OUT)                    :: mat_munu
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(mp2_type)                                     :: mp2_env
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(local_atoms_type), ALLOCATABLE, DIMENSION(:)  :: atom2d
+      TYPE(molecule_kind_type), DIMENSION(:), POINTER    :: molecule_kind_set
+      TYPE(molecule_type), DIMENSION(:), POINTER         :: molecule_set
+      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
+         POINTER                                         :: sab_orb_sub
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(cell_type), POINTER                           :: cell
+      TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_sub
+      LOGICAL, INTENT(IN), OPTIONAL                      :: do_ri_aux_basis, do_mixed_basis
+      INTEGER, INTENT(IN), OPTIONAL                      :: group_size_prim
+      LOGICAL, INTENT(IN), OPTIONAL                      :: do_im_time
+
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'create_mat_munu'
+
+      INTEGER                                            :: handle, ikind, natom, nkind
+      INTEGER, DIMENSION(:), POINTER                     :: col_blk_sizes, row_blk_sizes
+      LOGICAL                                            :: do_kpoints, my_do_im_time, &
+                                                            my_do_mixed_basis, my_do_ri_aux_basis
+      LOGICAL, ALLOCATABLE, DIMENSION(:)                 :: orb_present
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: orb_radius
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: pair_radius
+      REAL(kind=dp)                                      :: subcells
+      TYPE(dbcsr_distribution_type), POINTER             :: dbcsr_dist_sub
+      TYPE(distribution_1d_type), POINTER                :: local_molecules_sub, local_particles_sub
+      TYPE(distribution_2d_type), POINTER                :: distribution_2d_sub
+      TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_ri_aux
+      TYPE(gto_basis_set_type), POINTER                  :: orb_basis_set
+
+      CALL timeset(routineN, handle)
+
+      NULLIFY (basis_set_ri_aux)
+
+      my_do_ri_aux_basis = .FALSE.
+      IF (PRESENT(do_ri_aux_basis)) THEN
+         my_do_ri_aux_basis = do_ri_aux_basis
+      END IF
+
+      my_do_mixed_basis = .FALSE.
+      IF (PRESENT(do_mixed_basis)) THEN
+         my_do_mixed_basis = do_mixed_basis
+      END IF
+
+      my_do_im_time = .FALSE.
+      IF (PRESENT(do_im_time)) THEN
+         my_do_im_time = do_im_time
+      END IF
+
+!      do_kpoints = qs_env%mp2_env%ri_rpa_im_time%do_im_time_kpoints .OR. &
+!                             SUM(qs_env%mp2_env%ri_rpa_im_time%kp_grid) > 0
+      do_kpoints = qs_env%mp2_env%ri_rpa_im_time%do_im_time_kpoints
+
+      IF (do_kpoints) THEN
+         ! please choose EPS_PGF_ORB in QS section smaller than EPS_GRID in WFC_GPW section
+         IF (mp2_env%mp2_gpw%eps_grid < dft_control%qs_control%eps_pgf_orb) THEN
+            mp2_env%mp2_gpw%eps_grid = dft_control%qs_control%eps_pgf_orb
+            CPWARN("WFC_GPW%EPS_GRID has been set to QS%EPS_PGF_ORB")
+         END IF
+      END IF
+
+      ! hack hack hack XXXXXXXXXXXXXXX ... to be fixed
+      dft_control%qs_control%eps_pgf_orb = mp2_env%mp2_gpw%eps_grid
+      dft_control%qs_control%eps_rho_rspace = mp2_env%mp2_gpw%eps_grid
+      dft_control%qs_control%eps_gvg_rspace = mp2_env%mp2_gpw%eps_grid
+      CALL init_interaction_radii(dft_control%qs_control, qs_kind_set)
+
+      ! get a distribution_1d
+      NULLIFY (local_particles_sub, local_molecules_sub)
+      CALL distribute_molecules_1d(atomic_kind_set=atomic_kind_set, &
+                                   particle_set=particle_set, &
+                                   local_particles=local_particles_sub, &
+                                   molecule_kind_set=molecule_kind_set, &
+                                   molecule_set=molecule_set, &
+                                   local_molecules=local_molecules_sub, &
+                                   force_env_section=qs_env%input)
+
+      ! get a distribution_2d
+      NULLIFY (distribution_2d_sub)
+      CALL distribute_molecules_2d(cell=cell, &
+                                   atomic_kind_set=atomic_kind_set, &
+                                   qs_kind_set=qs_kind_set, &
+                                   particle_set=particle_set, &
+                                   molecule_kind_set=molecule_kind_set, &
+                                   molecule_set=molecule_set, &
+                                   distribution_2d=distribution_2d_sub, &
+                                   blacs_env=blacs_env_sub, &
+                                   force_env_section=qs_env%input)
+
+      ! Build the sub orbital-orbital overlap neighbor lists
+      NULLIFY (sab_orb_sub)
+      CALL section_vals_val_get(qs_env%input, "DFT%SUBCELLS", r_val=subcells)
+      nkind = SIZE(atomic_kind_set)
+      ALLOCATE (atom2d(nkind))
+
+      CALL atom2d_build(atom2d, local_particles_sub, distribution_2d_sub, atomic_kind_set, &
+                        molecule_set, molecule_only=.FALSE., particle_set=particle_set)
+
+      ALLOCATE (orb_present(nkind))
+      ALLOCATE (orb_radius(nkind))
+      ALLOCATE (pair_radius(nkind, nkind))
+
+      DO ikind = 1, nkind
+         CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis_set)
+         IF (ASSOCIATED(orb_basis_set)) THEN
+            orb_present(ikind) = .TRUE.
+            CALL get_gto_basis_set(gto_basis_set=orb_basis_set, kind_radius=orb_radius(ikind))
+         ELSE
+            orb_present(ikind) = .FALSE.
+            orb_radius(ikind) = 0.0_dp
+         END IF
+      END DO
+
+      CALL pair_radius_setup(orb_present, orb_present, orb_radius, orb_radius, pair_radius)
+
+      ! for cubic RPA/GW with kpoints, we need all neighbors and not only the symmetric ones
+      !TODO: note that we make it non-symmetric. IT NEEDS TO BE SYMMETRIC FOR INTEGRATION
+      CALL build_neighbor_lists(sab_orb_sub, particle_set, atom2d, cell, pair_radius, &
+                                mic=.FALSE., subcells=subcells, molecular=.FALSE., nlname="sab_orb_sub", &
+                                symmetric=.TRUE.)
+
+      CALL atom2d_cleanup(atom2d)
+      DEALLOCATE (atom2d)
+      DEALLOCATE (orb_present, orb_radius, pair_radius)
+
+      ! a dbcsr_dist
+      ALLOCATE (dbcsr_dist_sub)
+      CALL cp_dbcsr_dist2d_to_dist(distribution_2d_sub, dbcsr_dist_sub)
+
+      ! build a dbcsr matrix the hard way
+      natom = SIZE(particle_set)
+      ALLOCATE (row_blk_sizes(natom))
+      IF (my_do_ri_aux_basis) THEN
+
+         ALLOCATE (basis_set_ri_aux(nkind))
+         CALL basis_set_list_setup(basis_set_ri_aux, "RI_AUX", qs_kind_set)
+         CALL get_particle_set(particle_set, qs_kind_set, nsgf=row_blk_sizes, basis=basis_set_ri_aux)
+         DEALLOCATE (basis_set_ri_aux)
+
+      ELSE IF (my_do_mixed_basis) THEN
+
+         ALLOCATE (basis_set_ri_aux(nkind))
+         CALL basis_set_list_setup(basis_set_ri_aux, "RI_AUX", qs_kind_set)
+         CALL get_particle_set(particle_set, qs_kind_set, nsgf=row_blk_sizes, basis=basis_set_ri_aux)
+         DEALLOCATE (basis_set_ri_aux)
+
+         ALLOCATE (col_blk_sizes(natom))
+
+         CALL get_particle_set(particle_set, qs_kind_set, nsgf=col_blk_sizes)
+         col_blk_sizes = col_blk_sizes*group_size_prim
+
+      ELSE
+         CALL get_particle_set(particle_set, qs_kind_set, nsgf=row_blk_sizes)
+      END IF
+
+      NULLIFY (mat_munu%matrix)
+      ALLOCATE (mat_munu%matrix)
+
+      IF (my_do_ri_aux_basis) THEN
+
+         CALL dbcsr_create(matrix=mat_munu%matrix, &
+                           name="(ai|munu)", &
+                           dist=dbcsr_dist_sub, matrix_type=dbcsr_type_no_symmetry, &
+                           row_blk_size=row_blk_sizes, col_blk_size=row_blk_sizes, &
+                           nze=0)
+
+      ELSE IF (my_do_mixed_basis) THEN
+
+         CALL dbcsr_create(matrix=mat_munu%matrix, &
+                           name="(ai|munu)", &
+                           dist=dbcsr_dist_sub, matrix_type=dbcsr_type_no_symmetry, &
+                           row_blk_size=row_blk_sizes, col_blk_size=col_blk_sizes, &
+                           nze=0)
+
+      ELSE
+
+         !TODO: note that we make it non-symmetric IT NEEDS TO BE SYMMETRIC FOR INTEGRATION
+         CALL dbcsr_create(matrix=mat_munu%matrix, &
+                           name="(ai|munu)", &
+                           dist=dbcsr_dist_sub, matrix_type=dbcsr_type_symmetric, &
+                           row_blk_size=row_blk_sizes, col_blk_size=row_blk_sizes, &
+                           nze=0)
+
+         IF (.NOT. my_do_im_time) THEN
+
+            CALL cp_dbcsr_alloc_block_from_nbl(mat_munu%matrix, sab_orb_sub)
+
+         END IF
+
+      END IF
+
+      DEALLOCATE (row_blk_sizes)
+
+      IF (my_do_mixed_basis) THEN
+         DEALLOCATE (col_blk_sizes)
+      END IF
+
+      CALL dbcsr_distribution_release(dbcsr_dist_sub)
+      DEALLOCATE (dbcsr_dist_sub)
+
+      CALL distribution_2d_release(distribution_2d_sub)
+
+      CALL distribution_1d_release(local_particles_sub)
+      CALL distribution_1d_release(local_molecules_sub)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE create_mat_munu
+
+! **************************************************************************************************
 !> \brief Build 3-center integral tensor
 !> \param t3c empty DBCSR tensor
 !>            Should be of shape (1,1) if no kpoints are used and of shape (nimages, nimages)

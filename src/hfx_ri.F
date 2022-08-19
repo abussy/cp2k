@@ -88,7 +88,7 @@ MODULE hfx_ri
                                               release_neighbor_list_sets
    USE qs_tensors,                      ONLY: &
         build_2c_derivatives, build_2c_integrals, build_2c_neighbor_lists, build_3c_derivatives, &
-        build_3c_integrals, build_3c_neighbor_lists, compress_tensor, decompress_tensor, &
+        build_3c_integrals_gpw, build_3c_neighbor_lists, compress_tensor, decompress_tensor, &
         get_tensor_occupancy, neighbor_list_3c_destroy
    USE qs_tensors_types,                ONLY: create_2c_tensor,&
                                               create_3c_tensor,&
@@ -509,14 +509,20 @@ CONTAINS
                                    "HFX_3c_nl", qs_env, op_pos=1, sym_jk=.TRUE., own_dist=.TRUE.)
 
       DO i_mem = 1, n_mem
-         CALL build_3c_integrals(t_3c_int_batched, ri_data%filter_eps/2, qs_env, nl_3c, &
-                                 basis_set_RI, basis_set_AO, basis_set_AO, &
-                                 ri_data%ri_metric, int_eps=ri_data%eps_schwarz, op_pos=1, &
-                                 desymmetrize=.FALSE., &
-                                 bounds_j=[starts_array_mc_block_int(i_mem), ends_array_mc_block_int(i_mem)])
-         CALL dbt_copy(t_3c_int_batched(1, 1), t_3c_int(1, 1), summation=.TRUE., move_data=.TRUE.)
-         CALL dbt_filter(t_3c_int(1, 1), ri_data%filter_eps/2)
+         !CALL build_3c_integrals(t_3c_int_batched, ri_data%filter_eps/2, qs_env, nl_3c, &
+         !                        basis_set_RI, basis_set_AO, basis_set_AO, &
+         !                        ri_data%ri_metric, int_eps=ri_data%eps_schwarz, op_pos=1, &
+         !                        desymmetrize=.FALSE., &
+         !                        bounds_j=[starts_array_mc_block_int(i_mem), ends_array_mc_block_int(i_mem)])
+         !CALL dbt_copy(t_3c_int_batched(1, 1), t_3c_int(1, 1), summation=.TRUE., move_data=.TRUE.)
+         !CALL dbt_filter(t_3c_int(1, 1), ri_data%filter_eps/2)
       END DO
+
+      !TEST:
+      CALL build_3c_integrals_gpw(t_3c_int_batched, ri_data%filter_eps/2, qs_env, nl_3c, &
+                                  basis_set_RI, basis_set_AO, basis_set_AO, ri_data%ri_metric)
+      CALL dbt_copy(t_3c_int_batched(1, 1), t_3c_int(1, 1), summation=.TRUE., move_data=.TRUE.)
+      CALL dbt_filter(t_3c_int(1, 1), ri_data%filter_eps/2)
 
       CALL dbt_destroy(t_3c_int_batched(1, 1))
 
