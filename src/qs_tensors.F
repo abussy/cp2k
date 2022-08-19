@@ -1848,6 +1848,7 @@ CONTAINS
       map_2 = [2, 3]
       !pdims = [ngroup, group_size, 1]
       CALL dbt_pgrid_create(para_env%group, pdims, pgrid)
+      PRINT *, "3D pgrid dimensions: ", pdims
 
       ALLOCATE (dist_i(dims(1)))
       dist_i(:) = (/(MODULO(i, ngroup), i=0, dims(1) - 1)/) !compatible with sub-comm color
