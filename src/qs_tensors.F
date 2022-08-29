@@ -39,7 +39,7 @@ MODULE qs_tensors
         dbcsr_filter, dbcsr_finalize, dbcsr_get_block_p, dbcsr_get_info, dbcsr_get_matrix_type, &
         dbcsr_has_symmetry, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
         dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_p_type, &
-        dbcsr_release, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, &
+        dbcsr_release, dbcsr_set, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, &
         dbcsr_type_symmetric
    USE dbt_api,                         ONLY: &
         dbt_blk_sizes, dbt_clear, dbt_copy, dbt_create, dbt_destroy, dbt_distribution_destroy, &
