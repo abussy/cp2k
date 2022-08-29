@@ -1865,7 +1865,7 @@ CONTAINS
 
       !reserve blocks
       CALL alloc_block_3c(t3c, nl_3c, basis_i, basis_j, basis_k, qs_env, potential_parameter)
-      CALL dbt_copy(t3c(1, 1), t3c_tmp, move_data=.TRUE.)
+      CALL dbt_copy(t3c(1, 1), t3c_tmp, move_data=.TRUE.) !TODO: this seems to crash with certain config of cores
 
       !TODO: for now use a symmetric sab_orb and task_list because required by integrate_v_rspace
       !      this leads to using dbcsr_desymmetrize many times... need to check the cost of it
@@ -1892,9 +1892,10 @@ CONTAINS
                                           dft_control, particle_set, pw_env_ext, wf_vector, poisson_env, rho_r, &
                                           pot_g, potential_parameter, mat_munu, qs_env, task_list_ext)
             CALL timestop(handle2)
-            CALL dbcsr_filter(mat_munu%matrix, filter_eps)
             CALL timeset("HFX_desymm", handle2)
             CALL dbcsr_desymmetrize(mat_munu%matrix, mat_munu_desymm)
+            CALL dbcsr_filter(mat_munu_desymm, filter_eps)
+            CALL dbcsr_set(mat_munu%matrix, 0.0_dp)
             CALL timestop(handle2)
 
             !DBCSR iterator on mat_munu, only take upper diagonal elements and factor 0.5 on diag, put in t3c_tmp
