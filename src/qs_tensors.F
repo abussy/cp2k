@@ -1873,6 +1873,10 @@ CONTAINS
       CALL prepare_gpw(qs_env, dft_control, e_cutoff_old, cutoff_old, relative_cutoff_old, para_env_ext, pw_env_ext, &
                        auxbas_pw_pool, poisson_env, task_list_ext, rho_r, rho_g, pot_g, psi_L, sab_orb_ext)
 
+      !TODO: does not work well for water32. It is not a problem of parallelism/distribution, since even
+      !      with 1 core, the results are consistant. Could it be a problem of PBCs, or of too small
+      !      CUTOFF_RADIUS (seem to recall something with Fourier transform in the past)
+
       !Loop over the RI basis elements and integrate
       ALLOCATE (wf_vector(SUM(bsize_i(:))))
       DO iatom = 1, natom
