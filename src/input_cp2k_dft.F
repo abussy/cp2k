@@ -645,7 +645,7 @@ CONTAINS
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="PRINT", &
                           description="Section of possible print options in DFT code.", &
-                          n_keywords=0, n_subsections=1, repeats=.FALSE.)
+                          n_keywords=0, n_subsections=2, repeats=.FALSE.)
 
       NULLIFY (print_key, keyword, subsection)
 
@@ -679,6 +679,68 @@ CONTAINS
 
       CALL section_add_subsection(section, print_key)
       CALL section_release(print_key)
+
+      !This is a local modification to print RI densities
+      CALL section_create(subsection, __LOCATION__, name="RI_DENSITY", &
+                          description="Local modification to CP2K allowing the printing "// &
+                          "of RI_DENSITY related quantities.", &
+                          n_keywords=2, n_subsections=2, repeats=.FALSE.)
+
+      CALL keyword_create(keyword, __LOCATION__, name="RI_COEFFS_FILE", &
+                          description="The location of the file from which to read RI coefficients.", &
+                          default_c_val="")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="BASIS_TYPE", &
+                          description="The basis type in which the RI coefficients are expressed", &
+                          default_c_val="")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL cp_print_key_section_create(print_key, __LOCATION__, name="E_DENSITY_CUBE", &
+                                       description="Controls the printing of cube files with "// &
+                                       "the RI electronic density and, for LSD "// &
+                                       "calculations, the spin density", &
+                                       print_level=high_print_level, filename="")
+      CALL keyword_create(keyword, __LOCATION__, name="stride", &
+                          description="The stride (X,Y,Z) used to write the cube file "// &
+                          "(larger values result in smaller cube files). You can provide 3 numbers (for X,Y,Z) or"// &
+                          " 1 number valid for all components.", &
+                          usage="STRIDE 2 2 2", n_var=-1, default_i_vals=(/2, 2, 2/), type_of_var=integer_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="APPEND", &
+                          description="append the cube files when they already exist", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL section_add_subsection(subsection, print_key)
+      CALL section_release(print_key)
+
+      CALL cp_print_key_section_create(print_key, __LOCATION__, name="V_ELECTROSTATIC_CUBE", &
+                                       description="Controls the printing of cube files with "// &
+                                       "the electrostatic potential due to the RI density.", &
+                                       print_level=high_print_level, filename="")
+      CALL keyword_create(keyword, __LOCATION__, name="stride", &
+                          description="The stride (X,Y,Z) used to write the cube file "// &
+                          "(larger values result in smaller cube files). You can provide 3 numbers (for X,Y,Z) or"// &
+                          " 1 number valid for all components.", &
+                          usage="STRIDE 2 2 2", n_var=-1, default_i_vals=(/2, 2, 2/), type_of_var=integer_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="APPEND", &
+                          description="append the cube files when they already exist", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL section_add_subsection(subsection, print_key)
+      CALL section_release(print_key)
+
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
 
       CALL cp_print_key_section_create(print_key, __LOCATION__, name="neighbor_lists", &
                                        description="Controls the printing of the neighbor lists", &

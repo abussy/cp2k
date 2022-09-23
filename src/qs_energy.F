@@ -28,6 +28,7 @@ MODULE qs_energy
                                               qs_environment_type
    USE qs_ks_methods,                   ONLY: qs_ks_update_qs_env
    USE qs_scf,                          ONLY: scf
+   USE qs_scf_output,                   ONLY: print_ri_density
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -120,6 +121,9 @@ CONTAINS
          IF (dft_control%qs_control%lrigpw) THEN
             CALL lri_print_stat(qs_env)
          END IF
+
+         !This is a local modification of CP2K to print RI density stuff
+         CALL print_ri_density(qs_env)
 
       END IF
 

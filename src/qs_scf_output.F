@@ -10,9 +10,12 @@ MODULE qs_scf_output
    USE admm_utils,                      ONLY: admm_correct_for_eigenvalues,&
                                               admm_uncorrect_for_eigenvalues
    USE atomic_kind_types,               ONLY: atomic_kind_type
+   USE cell_types,                      ONLY: cell_type
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_output,                 ONLY: cp_dbcsr_write_sparse_matrix
+   USE cp_files,                        ONLY: close_file,&
+                                              open_file
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
                                               cp_fm_struct_release,&
                                               cp_fm_struct_type
@@ -26,6 +29,7 @@ MODULE qs_scf_output
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
    USE cp_para_types,                   ONLY: cp_para_env_type
+   USE cp_realspace_grid_cube,          ONLY: cp_pw_to_cube
    USE cp_units,                        ONLY: cp_unit_from_cp2k
    USE dbcsr_api,                       ONLY: dbcsr_p_type,&
                                               dbcsr_type
@@ -38,14 +42,18 @@ MODULE qs_scf_output
         radius_covalent, radius_default, radius_single, radius_user, radius_vdw, &
         shape_function_density, shape_function_gaussian
    USE input_section_types,             ONLY: section_get_ivals,&
+                                              section_get_lval,&
+                                              section_vals_get,&
                                               section_vals_get_subs_vals,&
                                               section_vals_type,&
                                               section_vals_val_get
    USE kahan_sum,                       ONLY: accurate_sum
-   USE kinds,                           ONLY: default_string_length,&
+   USE kinds,                           ONLY: default_path_length,&
+                                              default_string_length,&
                                               dp
    USE kpoint_types,                    ONLY: kpoint_type
    USE machine,                         ONLY: m_flush
+   USE particle_list_types,             ONLY: particle_list_type
    USE particle_types,                  ONLY: particle_type
    USE physcon,                         ONLY: evolt,&
                                               kcalmol
@@ -54,16 +62,28 @@ MODULE qs_scf_output
                                               MIXED_PERIODIC_BC,&
                                               NEUMANN_BC,&
                                               PERIODIC_BC
-   USE pw_env_types,                    ONLY: pw_env_type
+   USE pw_env_types,                    ONLY: pw_env_get,&
+                                              pw_env_type
+   USE pw_methods,                      ONLY: pw_scale
    USE pw_poisson_types,                ONLY: pw_poisson_implicit
+   USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
+                                              pw_pool_give_back_pw,&
+                                              pw_pool_type
+   USE pw_types,                        ONLY: COMPLEXDATA1D,&
+                                              REALDATA3D,&
+                                              REALSPACE,&
+                                              RECIPROCALSPACE,&
+                                              pw_p_type
    USE qmmm_image_charge,               ONLY: print_image_coefficients
    USE qs_cdft_opt_types,               ONLY: cdft_opt_type_write
    USE qs_cdft_types,                   ONLY: cdft_control_type
    USE qs_charges_types,                ONLY: qs_charges_type
+   USE qs_collocate_density,            ONLY: calculate_wavefunction
    USE qs_energy_types,                 ONLY: qs_energy_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
-   USE qs_kind_types,                   ONLY: qs_kind_type
+   USE qs_kind_types,                   ONLY: get_qs_kind_set,&
+                                              qs_kind_type
    USE qs_mo_io,                        ONLY: write_mo_set_to_output_unit
    USE qs_mo_methods,                   ONLY: calculate_magnitude,&
                                               calculate_orthonormality,&
@@ -81,6 +101,8 @@ MODULE qs_scf_output
    USE qs_scf_types,                    ONLY: ot_method_nr,&
                                               qs_scf_env_type,&
                                               special_diag_method_nr
+   USE qs_subsys_types,                 ONLY: qs_subsys_get,&
+                                              qs_subsys_type
    USE scf_control_types,               ONLY: scf_control_type
 #include "./base/base_uses.f90"
 
@@ -98,9 +120,127 @@ MODULE qs_scf_output
              qs_scf_write_mos, &
              qs_scf_cdft_info, &
              qs_scf_cdft_initial_info, &
-             qs_scf_cdft_constraint_info
+             qs_scf_cdft_constraint_info, &
+             print_ri_density
 
 CONTAINS
+
+! **************************************************************************************************
+!> \brief This is a local modification to CP2K, in which we print quantites related to the RI density,
+!>        which is read from a file containing the RI coefficients
+!> \param qs_env ...
+! **************************************************************************************************
+   SUBROUTINE print_ri_density(qs_env)
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+
+      CHARACTER(default_path_length)                     :: mpi_filename
+      CHARACTER(default_string_length)                   :: basis_type, filename, header, my_pos_cube
+      INTEGER                                            :: i, natom, nsgf_tot, unit_nr
+      LOGICAL                                            :: append_cube, do_print, file_exists, &
+                                                            mpi_io
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: density_coeffs
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(cell_type), POINTER                           :: cell
+      TYPE(cp_fm_type), POINTER                          :: dummy_fm
+      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(particle_list_type), POINTER                  :: particles
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(pw_env_type), POINTER                         :: pw_env
+      TYPE(pw_p_type)                                    :: rho_g, rho_r
+      TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(qs_subsys_type), POINTER                      :: subsys
+      TYPE(section_vals_type), POINTER                   :: print_section
+
+      NULLIFY (para_env, qs_kind_set, print_section, dummy_fm, atomic_kind_set, cell, dft_control, &
+               particle_set, pw_env, auxbas_pw_pool, logger, particles, subsys)
+
+      print_section => section_vals_get_subs_vals(qs_env%input, "DFT%PRINT%RI_DENSITY")
+      CALL section_vals_get(print_section, explicit=do_print)
+      IF (.NOT. do_print) RETURN
+
+      logger => cp_get_default_logger()
+
+      !First we need to be able to read the RI coefficients
+      CALL get_qs_env(qs_env, para_env=para_env, natom=natom, qs_kind_set=qs_kind_set, cell=cell, &
+                      atomic_kind_set=atomic_kind_set, dft_control=dft_control, pw_env=pw_env, &
+                      particle_set=particle_set, subsys=subsys)
+      CALL qs_subsys_get(subsys, particles=particles)
+
+      !TODO: generalize
+      CPASSERT(dft_control%nspins == 1)
+
+      CALL section_vals_val_get(qs_env%input, "DFT%PRINT%RI_DENSITY%BASIS_TYPE", c_val=basis_type)
+      CALL get_qs_kind_set(qs_kind_set, nsgf=nsgf_tot, basis_type=TRIM(basis_type))
+
+      unit_nr = -1
+      file_exists = .FALSE.
+      CALL section_vals_val_get(qs_env%input, "DFT%PRINT%RI_DENSITY%RI_COEFFS_FILE", c_val=filename)
+      IF (para_env%ionode) THEN
+         INQUIRE (FILE=filename, EXIST=file_exists)
+         IF (.NOT. file_exists) CPABORT("Trying to read non-existing RI_COEFFS file")
+
+         CALL open_file(file_name=TRIM(filename), file_action="READ", file_form="FORMATTED", &
+                        file_position="REWIND", file_status="OLD", unit_number=unit_nr)
+      END IF
+
+      ALLOCATE (density_coeffs(nsgf_tot))
+      IF (unit_nr > 0) THEN
+         READ (unit_nr, *) header
+         DO i = 1, nsgf_tot
+            READ (unit_nr, *) density_coeffs(i)
+         END DO
+      END IF
+
+      IF (para_env%ionode) THEN
+         CALL close_file(unit_number=unit_nr)
+      END IF
+
+      !TODO: fails with MPI rank > 1, why ?!?
+
+      !Then we need the density on the grid
+      NULLIFY (rho_r%pw, rho_g%pw)
+      CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
+      CALL pw_pool_create_pw(auxbas_pw_pool, rho_r%pw, use_data=REALDATA3D, in_space=REALSPACE)
+      CALL pw_pool_create_pw(auxbas_pw_pool, rho_g%pw, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+
+      CALL calculate_wavefunction(dummy_fm, 1, rho_r, rho_g, atomic_kind_set, qs_kind_set, cell, &
+                                  dft_control, particle_set, pw_env, TRIM(basis_type), density_coeffs)
+      CALL pw_scale(rho_r%pw, rho_r%pw%pw_grid%dvol)
+      PRINT *, "Density coeffs:", density_coeffs
+      PRINT *, "Tot density: ", SUM(rho_r%pw%cr3d(:, :, :))
+      CALL pw_scale(rho_r%pw, 1.0_dp/rho_r%pw%pw_grid%dvol)
+
+      !Print the electronic density to file
+      IF (BTEST(cp_print_key_should_output(logger%iter_info, qs_env%input, &
+                                           "DFT%PRINT%RI_DENSITY%E_DENSITY_CUBE"), cp_p_file)) THEN
+
+         append_cube = section_get_lval(qs_env%input, "DFT%PRINT%RI_DENSITY%E_DENSITY_CUBE%APPEND")
+         my_pos_cube = "REWIND"
+         IF (append_cube) THEN
+            my_pos_cube = "APPEND"
+         END IF
+
+         filename = "RI_ELECTRON_DENSITY"
+         mpi_io = .TRUE.
+         unit_nr = cp_print_key_unit_nr(logger, qs_env%input, "DFT%PRINT%RI_DENSITY%E_DENSITY_CUBE", &
+                                        extension=".cube", middle_name=TRIM(filename), &
+                                        file_position=my_pos_cube, log_filename=.FALSE., mpi_io=mpi_io, &
+                                        fout=mpi_filename)
+
+         CALL cp_pw_to_cube(rho_r%pw, unit_nr, "RI ELECTRON DENSITY", particles=particles, &
+                            stride=section_get_ivals(qs_env%input, "DFT%PRINT%RI_DENSITY%E_DENSITY_CUBE%STRIDE"), &
+                            mpi_io=mpi_io)
+         CALL cp_print_key_finished_output(unit_nr, logger, qs_env%input, &
+                                           "DFT%PRINT%RI_DENSITY%E_DENSITY_CUBE", mpi_io=mpi_io)
+      END IF
+
+      CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r%pw)
+      CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_g%pw)
+
+   END SUBROUTINE print_ri_density
 
 ! **************************************************************************************************
 !> \brief writes a summary of information after scf
