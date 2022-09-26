@@ -53,6 +53,7 @@ MODULE qs_scf_output
                                               dp
    USE kpoint_types,                    ONLY: kpoint_type
    USE machine,                         ONLY: m_flush
+   USE message_passing,                 ONLY: mp_sum
    USE particle_list_types,             ONLY: particle_list_type
    USE particle_types,                  ONLY: particle_type
    USE physcon,                         ONLY: evolt,&
@@ -64,8 +65,11 @@ MODULE qs_scf_output
                                               PERIODIC_BC
    USE pw_env_types,                    ONLY: pw_env_get,&
                                               pw_env_type
-   USE pw_methods,                      ONLY: pw_scale
-   USE pw_poisson_types,                ONLY: pw_poisson_implicit
+   USE pw_methods,                      ONLY: pw_axpy,&
+                                              pw_transfer
+   USE pw_poisson_methods,              ONLY: pw_poisson_solve
+   USE pw_poisson_types,                ONLY: pw_poisson_implicit,&
+                                              pw_poisson_type
    USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
                                               pw_pool_give_back_pw,&
                                               pw_pool_type
@@ -138,6 +142,7 @@ CONTAINS
       INTEGER                                            :: i, natom, nsgf_tot, unit_nr
       LOGICAL                                            :: append_cube, do_print, file_exists, &
                                                             mpi_io
+      REAL(dp)                                           :: ehartree
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: density_coeffs
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
@@ -148,14 +153,16 @@ CONTAINS
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env
-      TYPE(pw_p_type)                                    :: rho_g, rho_r
+      TYPE(pw_p_type)                                    :: rho_g, rho_r, v_hartree_g, v_hartree_r
+      TYPE(pw_p_type), POINTER                           :: rho_core
+      TYPE(pw_poisson_type), POINTER                     :: poisson_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_subsys_type), POINTER                      :: subsys
       TYPE(section_vals_type), POINTER                   :: print_section
 
       NULLIFY (para_env, qs_kind_set, print_section, dummy_fm, atomic_kind_set, cell, dft_control, &
-               particle_set, pw_env, auxbas_pw_pool, logger, particles, subsys)
+               particle_set, pw_env, auxbas_pw_pool, logger, particles, subsys, poisson_env)
 
       print_section => section_vals_get_subs_vals(qs_env%input, "DFT%PRINT%RI_DENSITY")
       CALL section_vals_get(print_section, explicit=do_print)
@@ -187,31 +194,27 @@ CONTAINS
       END IF
 
       ALLOCATE (density_coeffs(nsgf_tot))
+      density_coeffs = 0.0_dp
       IF (unit_nr > 0) THEN
          READ (unit_nr, *) header
          DO i = 1, nsgf_tot
             READ (unit_nr, *) density_coeffs(i)
          END DO
       END IF
+      CALL mp_sum(density_coeffs, para_env%group)
 
       IF (para_env%ionode) THEN
          CALL close_file(unit_number=unit_nr)
       END IF
 
-      !TODO: fails with MPI rank > 1, why ?!?
-
       !Then we need the density on the grid
       NULLIFY (rho_r%pw, rho_g%pw)
-      CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
+      CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, poisson_env=poisson_env)
       CALL pw_pool_create_pw(auxbas_pw_pool, rho_r%pw, use_data=REALDATA3D, in_space=REALSPACE)
       CALL pw_pool_create_pw(auxbas_pw_pool, rho_g%pw, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
 
       CALL calculate_wavefunction(dummy_fm, 1, rho_r, rho_g, atomic_kind_set, qs_kind_set, cell, &
                                   dft_control, particle_set, pw_env, TRIM(basis_type), density_coeffs)
-      CALL pw_scale(rho_r%pw, rho_r%pw%pw_grid%dvol)
-      PRINT *, "Density coeffs:", density_coeffs
-      PRINT *, "Tot density: ", SUM(rho_r%pw%cr3d(:, :, :))
-      CALL pw_scale(rho_r%pw, 1.0_dp/rho_r%pw%pw_grid%dvol)
 
       !Print the electronic density to file
       IF (BTEST(cp_print_key_should_output(logger%iter_info, qs_env%input, &
@@ -235,6 +238,45 @@ CONTAINS
                             mpi_io=mpi_io)
          CALL cp_print_key_finished_output(unit_nr, logger, qs_env%input, &
                                            "DFT%PRINT%RI_DENSITY%E_DENSITY_CUBE", mpi_io=mpi_io)
+      END IF
+
+      !Print the electrostatic potential to a cube file
+      IF (BTEST(cp_print_key_should_output(logger%iter_info, qs_env%input, &
+                                           "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE"), cp_p_file)) THEN
+
+         NULLIFY (v_hartree_g%pw, v_hartree_r%pw)
+         CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_g%pw, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+         CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_r%pw, use_data=REALDATA3D, in_space=REALSPACE)
+
+         !TODO: for the test, we do the potential due to the total density. Ask Andrea what he needs
+         NULLIFY (rho_core)
+         CALL get_qs_env(qs_env, rho_core=rho_core)
+         CALL pw_axpy(rho_core%pw, rho_g%pw)
+
+         CALL pw_poisson_solve(poisson_env, rho_g%pw, ehartree, v_hartree_g%pw)
+         CALL pw_transfer(v_hartree_g%pw, v_hartree_r%pw)
+
+         append_cube = section_get_lval(qs_env%input, "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE%APPEND")
+         my_pos_cube = "REWIND"
+         IF (append_cube) THEN
+            my_pos_cube = "APPEND"
+         END IF
+
+         filename = "RI_V_ELECTROSTATIC"
+         mpi_io = .TRUE.
+         unit_nr = cp_print_key_unit_nr(logger, qs_env%input, "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE", &
+                                        extension=".cube", middle_name=TRIM(filename), &
+                                        file_position=my_pos_cube, log_filename=.FALSE., mpi_io=mpi_io, &
+                                        fout=mpi_filename)
+
+         CALL cp_pw_to_cube(v_hartree_r%pw, unit_nr, "ELECTROSTATIC POTENTIAL DUE TO RI DENSITY", particles=particles, &
+                            stride=section_get_ivals(qs_env%input, "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE%STRIDE"), &
+                            mpi_io=mpi_io)
+         CALL cp_print_key_finished_output(unit_nr, logger, qs_env%input, &
+                                           "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE", mpi_io=mpi_io)
+
+         CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_r%pw)
+         CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_g%pw)
       END IF
 
       CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r%pw)
