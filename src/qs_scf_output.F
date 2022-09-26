@@ -248,7 +248,6 @@ CONTAINS
          CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_g%pw, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
          CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_r%pw, use_data=REALDATA3D, in_space=REALSPACE)
 
-         !TODO: for the test, we do the potential due to the total density. Ask Andrea what he needs
          NULLIFY (rho_core)
          CALL get_qs_env(qs_env, rho_core=rho_core)
          CALL pw_axpy(rho_core%pw, rho_g%pw)
