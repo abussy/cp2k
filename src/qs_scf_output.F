@@ -77,7 +77,7 @@ MODULE qs_scf_output
                                               REALDATA3D,&
                                               REALSPACE,&
                                               RECIPROCALSPACE,&
-                                              pw_p_type
+                                              pw_type
    USE qmmm_image_charge,               ONLY: print_image_coefficients
    USE qs_cdft_opt_types,               ONLY: cdft_opt_type_write
    USE qs_cdft_types,                   ONLY: cdft_control_type
@@ -153,10 +153,10 @@ CONTAINS
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env
-      TYPE(pw_p_type)                                    :: rho_g, rho_r, v_hartree_g, v_hartree_r
-      TYPE(pw_p_type), POINTER                           :: rho_core
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
+      TYPE(pw_type)                                      :: rho_g, rho_r, v_hartree_g, v_hartree_r
+      TYPE(pw_type), POINTER                             :: rho_core
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_subsys_type), POINTER                      :: subsys
       TYPE(section_vals_type), POINTER                   :: print_section
@@ -208,10 +208,9 @@ CONTAINS
       END IF
 
       !Then we need the density on the grid
-      NULLIFY (rho_r%pw, rho_g%pw)
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, poisson_env=poisson_env)
-      CALL pw_pool_create_pw(auxbas_pw_pool, rho_r%pw, use_data=REALDATA3D, in_space=REALSPACE)
-      CALL pw_pool_create_pw(auxbas_pw_pool, rho_g%pw, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+      CALL pw_pool_create_pw(auxbas_pw_pool, rho_r, use_data=REALDATA3D, in_space=REALSPACE)
+      CALL pw_pool_create_pw(auxbas_pw_pool, rho_g, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
 
       CALL calculate_wavefunction(dummy_fm, 1, rho_r, rho_g, atomic_kind_set, qs_kind_set, cell, &
                                   dft_control, particle_set, pw_env, TRIM(basis_type), density_coeffs)
@@ -233,7 +232,7 @@ CONTAINS
                                         file_position=my_pos_cube, log_filename=.FALSE., mpi_io=mpi_io, &
                                         fout=mpi_filename)
 
-         CALL cp_pw_to_cube(rho_r%pw, unit_nr, "RI ELECTRON DENSITY", particles=particles, &
+         CALL cp_pw_to_cube(rho_r, unit_nr, "RI ELECTRON DENSITY", particles=particles, &
                             stride=section_get_ivals(qs_env%input, "DFT%PRINT%RI_DENSITY%E_DENSITY_CUBE%STRIDE"), &
                             mpi_io=mpi_io)
          CALL cp_print_key_finished_output(unit_nr, logger, qs_env%input, &
@@ -244,16 +243,15 @@ CONTAINS
       IF (BTEST(cp_print_key_should_output(logger%iter_info, qs_env%input, &
                                            "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE"), cp_p_file)) THEN
 
-         NULLIFY (v_hartree_g%pw, v_hartree_r%pw)
-         CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_g%pw, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
-         CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_r%pw, use_data=REALDATA3D, in_space=REALSPACE)
+         CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_g, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+         CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_r, use_data=REALDATA3D, in_space=REALSPACE)
 
          NULLIFY (rho_core)
          CALL get_qs_env(qs_env, rho_core=rho_core)
-         CALL pw_axpy(rho_core%pw, rho_g%pw)
+         CALL pw_axpy(rho_core, rho_g)
 
-         CALL pw_poisson_solve(poisson_env, rho_g%pw, ehartree, v_hartree_g%pw)
-         CALL pw_transfer(v_hartree_g%pw, v_hartree_r%pw)
+         CALL pw_poisson_solve(poisson_env, rho_g, ehartree, v_hartree_g)
+         CALL pw_transfer(v_hartree_g, v_hartree_r)
 
          append_cube = section_get_lval(qs_env%input, "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE%APPEND")
          my_pos_cube = "REWIND"
@@ -268,18 +266,18 @@ CONTAINS
                                         file_position=my_pos_cube, log_filename=.FALSE., mpi_io=mpi_io, &
                                         fout=mpi_filename)
 
-         CALL cp_pw_to_cube(v_hartree_r%pw, unit_nr, "ELECTROSTATIC POTENTIAL DUE TO RI DENSITY", particles=particles, &
+         CALL cp_pw_to_cube(v_hartree_r, unit_nr, "ELECTROSTATIC POTENTIAL DUE TO RI DENSITY", particles=particles, &
                             stride=section_get_ivals(qs_env%input, "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE%STRIDE"), &
                             mpi_io=mpi_io)
          CALL cp_print_key_finished_output(unit_nr, logger, qs_env%input, &
                                            "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE", mpi_io=mpi_io)
 
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_r%pw)
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_g%pw)
+         CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_r)
+         CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_g)
       END IF
 
-      CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r%pw)
-      CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_g%pw)
+      CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r)
+      CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_g)
 
    END SUBROUTINE print_ri_density
 
