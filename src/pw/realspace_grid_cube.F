@@ -192,7 +192,7 @@ CONTAINS
                         IF (buf(I3) < 1.E-7_dp) buf(I3) = 0.0_dp
                      END DO
                   END IF
-                  WRITE (unit_nr, '(6E13.5)') (buf(I3), I3=L3, U3, my_stride(3))
+                  WRITE (unit_nr, '(6E20.12)') (buf(I3), I3=L3, U3, my_stride(3))
                END IF
 
                ! this double loop generates so many messages that it can overload

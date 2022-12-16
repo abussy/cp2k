@@ -5,27 +5,31 @@ The only prerequisite is to [install Docker](https://docs.docker.com/get-docker/
 
 ## Production Images
 
- 1. Build the container image:
+1. Build the container image:
 
-    <!-- markdownlint-disable MD013 -->
-    ```shell
-    docker build -f Dockerfile.prod_psmp --build-arg GIT_COMMIT_SHA=$(git rev-parse HEAD) -t cp2k_prod_psmp ../../
-    ```
-    <!-- markdownlint-enable MD013 -->
+   <!-- markdownlint-disable MD013 -->
 
- 2. Go to the directory with your input files:
+   ```shell
+   docker build -f Dockerfile.prod_psmp --build-arg GIT_COMMIT_SHA=$(git rev-parse HEAD) -t cp2k_prod_psmp ../../
+   ```
 
-    ```shell
-    cd ../../benchmarks/QS_single_node
-    ```
+   <!-- markdownlint-enable MD013 -->
 
- 3. Run the container:
+1. Go to the directory with your input files:
 
-    <!-- markdownlint-disable MD013 -->
-    ```shell
-    docker run --shm-size=1g -ti -v "$(pwd)":/mnt cp2k_prod_psmp mpiexec -genv OMP_NUM_THREADS=2 -np 16 cp2k dbcsr.inp
-    ```
-    <!-- markdownlint-enable MD013 -->
+   ```shell
+   cd ../../benchmarks/QS_single_node
+   ```
+
+1. Run the container:
+
+   <!-- markdownlint-disable MD013 -->
+
+   ```shell
+   docker run --shm-size=1g -ti -v "$(pwd)":/mnt cp2k_prod_psmp mpiexec -genv OMP_NUM_THREADS=2 -np 16 cp2k dbcsr.inp
+   ```
+
+   <!-- markdownlint-enable MD013 -->
 
 ## Test Images
 
