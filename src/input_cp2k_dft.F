@@ -698,6 +698,14 @@ CONTAINS
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="FOURIER_TRANSFORM", &
+                          variants=s2a("FFT"), &
+                          description="Whether the Fourier transform of the density (and back) should "// &
+                          "be taken before CUBE dumping. This is a noise cancellation measure.", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
       CALL cp_print_key_section_create(print_key, __LOCATION__, name="E_DENSITY_CUBE", &
                                        description="Controls the printing of cube files with "// &
                                        "the RI electronic density and, for LSD "// &

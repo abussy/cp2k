@@ -66,7 +66,8 @@ MODULE qs_scf_output
    USE pw_env_types,                    ONLY: pw_env_get,&
                                               pw_env_type
    USE pw_methods,                      ONLY: pw_axpy,&
-                                              pw_transfer
+                                              pw_transfer,&
+                                              pw_zero
    USE pw_poisson_methods,              ONLY: pw_poisson_solve
    USE pw_poisson_types,                ONLY: pw_poisson_implicit,&
                                               pw_poisson_type
@@ -140,8 +141,8 @@ CONTAINS
       CHARACTER(default_path_length)                     :: mpi_filename
       CHARACTER(default_string_length)                   :: basis_type, filename, header, my_pos_cube
       INTEGER                                            :: i, natom, nsgf_tot, unit_nr
-      LOGICAL                                            :: append_cube, do_print, file_exists, &
-                                                            mpi_io
+      LOGICAL                                            :: append_cube, do_fft, do_print, &
+                                                            file_exists, mpi_io
       REAL(dp)                                           :: ehartree
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: density_coeffs
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -181,6 +182,9 @@ CONTAINS
 
       CALL section_vals_val_get(qs_env%input, "DFT%PRINT%RI_DENSITY%BASIS_TYPE", c_val=basis_type)
       CALL get_qs_kind_set(qs_kind_set, nsgf=nsgf_tot, basis_type=TRIM(basis_type))
+
+      do_fft = .FALSE.
+      CALL section_vals_val_get(qs_env%input, "DFT%PRINT%RI_DENSITY%FOURIER_TRANSFORM", l_val=do_fft)
 
       unit_nr = -1
       file_exists = .FALSE.
@@ -231,6 +235,11 @@ CONTAINS
                                         extension=".cube", middle_name=TRIM(filename), &
                                         file_position=my_pos_cube, log_filename=.FALSE., mpi_io=mpi_io, &
                                         fout=mpi_filename)
+
+         IF (do_fft) THEN
+            CALL pw_zero(rho_r)
+            CALL pw_transfer(rho_g, rho_r)
+         END IF
 
          CALL cp_pw_to_cube(rho_r, unit_nr, "RI ELECTRON DENSITY", particles=particles, &
                             stride=section_get_ivals(qs_env%input, "DFT%PRINT%RI_DENSITY%E_DENSITY_CUBE%STRIDE"), &
