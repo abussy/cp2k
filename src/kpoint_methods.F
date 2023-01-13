@@ -41,7 +41,8 @@ MODULE kpoint_methods
         dbcsr_copy, dbcsr_create, dbcsr_deallocate_matrix, dbcsr_distribution_get, &
         dbcsr_distribution_type, dbcsr_get_block_p, dbcsr_get_info, dbcsr_iterator_blocks_left, &
         dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_p_type, dbcsr_set, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_symmetric
+        dbcsr_p_type, dbcsr_set, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, &
+        dbcsr_type_symmetric
    USE fermi_utils,                     ONLY: fermikp,&
                                               fermikp2
    USE input_constants,                 ONLY: smear_fermi_dirac
@@ -578,10 +579,12 @@ CONTAINS
                                                             ncount
       INTEGER, DIMENSION(3)                              :: cell, itm
       INTEGER, DIMENSION(:, :), POINTER                  :: index_to_cell, list
-      INTEGER, DIMENSION(:, :, :), POINTER               :: cti
+      INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index, cti
       LOGICAL                                            :: new
       TYPE(neighbor_list_iterator_p_type), &
          DIMENSION(:), POINTER                           :: nl_iterator
+
+      NULLIFY (cell_to_index, index_to_cell)
 
       CALL timeset(routineN, handle)
 
@@ -623,7 +626,8 @@ CONTAINS
          DEALLOCATE (kpoint%cell_to_index)
       END IF
       ALLOCATE (kpoint%cell_to_index(-itm(1):itm(1), -itm(2):itm(2), -itm(3):itm(3)))
-      cti => kpoint%cell_to_index
+      cell_to_index => kpoint%cell_to_index
+      cti => cell_to_index
       cti(:, :, :) = 0
       DO ic = 1, icount
          i1 = list(1, ic)
@@ -1015,10 +1019,11 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'kpoint_density_transform'
 
+      CHARACTER(1)                                       :: csym, rsym
       INTEGER                                            :: handle, ic, ik, ikk, indx, is, ispin, &
                                                             nc, nimg, nkp, nspin
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
-      LOGICAL                                            :: my_kpgrp, real_only
+      LOGICAL                                            :: do_symmetric, my_kpgrp, real_only
       REAL(KIND=dp)                                      :: wkpx
       REAL(KIND=dp), DIMENSION(:), POINTER               :: wkp
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: xkp
@@ -1031,12 +1036,21 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
+      CALL get_neighbor_list_set_p(neighbor_list_sets=sab_nl, symmetric=do_symmetric)
+
+      rsym = dbcsr_type_symmetric
+      csym = dbcsr_type_antisymmetric
+      IF (.NOT. do_symmetric) THEN
+         rsym = dbcsr_type_no_symmetry
+         csym = dbcsr_type_no_symmetry
+      END IF
+
       ! work storage
       ALLOCATE (rpmat)
-      CALL dbcsr_create(rpmat, template=tempmat, matrix_type=dbcsr_type_symmetric)
+      CALL dbcsr_create(rpmat, template=tempmat, matrix_type=rsym)
       CALL cp_dbcsr_alloc_block_from_nbl(rpmat, sab_nl)
       ALLOCATE (cpmat)
-      CALL dbcsr_create(cpmat, template=tempmat, matrix_type=dbcsr_type_antisymmetric)
+      CALL dbcsr_create(cpmat, template=tempmat, matrix_type=csym)
       CALL cp_dbcsr_alloc_block_from_nbl(cpmat, sab_nl)
       IF (.NOT. kpoint%full_grid) THEN
          ALLOCATE (srpmat)
@@ -1049,7 +1063,7 @@ CONTAINS
 
       CALL get_kpoint_info(kpoint, nkp=nkp, xkp=xkp, wkp=wkp, &
                            para_env_inter_kp=para_env_inter_kp, &
-                           sab_nl=sab_nl, cell_to_index=cell_to_index)
+                           cell_to_index=cell_to_index)
       ! initialize real space density matrices
       kp => kpoint%kp_env(1)%kpoint_env
       nspin = SIZE(kp%mos, 2)
@@ -1199,7 +1213,8 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'transform_dmat'
 
-      INTEGER                                            :: handle, iatom, icell, icol, irow, jatom
+      INTEGER                                            :: handle, iatom, icell, icol, irow, jatom, &
+                                                            nimg
       INTEGER, DIMENSION(3)                              :: cell
       LOGICAL                                            :: do_symmetric, found
       REAL(KIND=dp)                                      :: arg, coskl, fc, sinkl
@@ -1208,6 +1223,8 @@ CONTAINS
          DIMENSION(:), POINTER                           :: nl_iterator
 
       CALL timeset(routineN, handle)
+
+      nimg = SIZE(denmat, 2)
 
       ! transformation
       CALL get_neighbor_list_set_p(neighbor_list_sets=sab_nl, symmetric=do_symmetric)
@@ -1226,6 +1243,7 @@ CONTAINS
             fc = 1.0_dp
          END IF
          icell = cell_to_index(cell(1), cell(2), cell(3))
+         IF (icell < 1 .OR. icell > nimg) CYCLE
          arg = REAL(cell(1), dp)*xkp(1) + REAL(cell(2), dp)*xkp(2) + REAL(cell(3), dp)*xkp(3)
          coskl = wkp*COS(twopi*arg)
          sinkl = wkp*fc*SIN(twopi*arg)

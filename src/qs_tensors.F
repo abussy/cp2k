@@ -276,7 +276,8 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE build_3c_neighbor_lists(ijk_list, basis_i, basis_j, basis_k, &
                                       dist_3d, potential_parameter, name, qs_env, &
-                                      sym_ij, sym_jk, sym_ik, molecular, op_pos, own_dist)
+                                      sym_ij, sym_jk, sym_ik, molecular, op_pos, &
+                                      own_dist)
       TYPE(neighbor_list_3c_type), INTENT(OUT)           :: ijk_list
       TYPE(gto_basis_set_p_type), DIMENSION(:)           :: basis_i, basis_j, basis_k
       TYPE(distribution_3d_type), INTENT(IN)             :: dist_3d
@@ -609,38 +610,46 @@ CONTAINS
 !> \param potential_parameter ...
 !> \param op_pos ...
 !> \param do_kpoints ...
+!> \param do_hfx_kpoints ...
 !> \param bounds_i ...
 !> \param bounds_j ...
 !> \param bounds_k ...
+!> \param RI_range ...
+!> \param img_to_RI_cell ...
 ! **************************************************************************************************
    SUBROUTINE alloc_block_3c(t3c, nl_3c, basis_i, basis_j, basis_k, qs_env, potential_parameter, op_pos, &
-                             do_kpoints, bounds_i, bounds_j, bounds_k)
+                             do_kpoints, do_hfx_kpoints, bounds_i, bounds_j, bounds_k, RI_range, &
+                             img_to_RI_cell)
       TYPE(dbt_type), DIMENSION(:, :), INTENT(INOUT)     :: t3c
       TYPE(neighbor_list_3c_type), INTENT(INOUT)         :: nl_3c
       TYPE(gto_basis_set_p_type), DIMENSION(:)           :: basis_i, basis_j, basis_k
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(libint_potential_type), INTENT(IN)            :: potential_parameter
       INTEGER, INTENT(IN), OPTIONAL                      :: op_pos
-      LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints
+      LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints, do_hfx_kpoints
       INTEGER, DIMENSION(2), INTENT(IN), OPTIONAL        :: bounds_i, bounds_j, bounds_k
+      REAL(dp), INTENT(IN), OPTIONAL                     :: RI_range
+      INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: img_to_RI_cell
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'alloc_block_3c'
 
-      INTEGER                                            :: handle, i_img, iatom, ikind, j_img, &
-                                                            jatom, jcell, jkind, katom, kcell, &
-                                                            kkind, natom, nimg, op_ij, op_jk, &
-                                                            op_pos_prv
+      INTEGER                                            :: handle, iatom, ikind, j_img, jatom, &
+                                                            jcell, jkind, k_img, katom, kcell, &
+                                                            kkind, natom, ncell_RI, nimg, op_ij, &
+                                                            op_jk, op_pos_prv
       INTEGER(int_8)                                     :: a, b, nblk_per_thread
       INTEGER(int_8), ALLOCATABLE, DIMENSION(:, :)       :: nblk
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: img_to_RI_cell_prv
       INTEGER, DIMENSION(3)                              :: cell_j, cell_k, kp_index_lbounds, &
                                                             kp_index_ubounds
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
-      LOGICAL                                            :: do_kpoints_prv
+      LOGICAL                                            :: do_hfx_kpoints_prv, do_kpoints_prv
       REAL(KIND=dp)                                      :: dij, dik, djk, dr_ij, dr_ik, dr_jk, &
                                                             kind_radius_i, kind_radius_j, &
                                                             kind_radius_k
       REAL(KIND=dp), DIMENSION(3)                        :: rij, rik, rjk
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(cell_type), POINTER                           :: cell
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(mp_para_env_type), POINTER                    :: para_env
@@ -650,12 +659,27 @@ CONTAINS
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
       CALL timeset(routineN, handle)
-      NULLIFY (qs_kind_set, atomic_kind_set)
+      NULLIFY (qs_kind_set, atomic_kind_set, cell)
 
       IF (PRESENT(do_kpoints)) THEN
          do_kpoints_prv = do_kpoints
       ELSE
          do_kpoints_prv = .FALSE.
+      END IF
+      IF (PRESENT(do_hfx_kpoints)) THEN
+         do_hfx_kpoints_prv = do_hfx_kpoints
+      ELSE
+         do_hfx_kpoints_prv = .FALSE.
+      END IF
+      IF (do_hfx_kpoints_prv) THEN
+         CPASSERT(do_kpoints_prv)
+         CPASSERT(PRESENT(RI_range))
+         CPASSERT(PRESENT(img_to_RI_cell))
+      END IF
+
+      IF (PRESENT(img_to_RI_cell)) THEN
+         ALLOCATE (img_to_RI_cell_prv(SIZE(img_to_RI_cell)))
+         img_to_RI_cell_prv(:) = img_to_RI_cell
       END IF
 
       dr_ij = 0.0_dp; dr_jk = 0.0_dp; dr_ik = 0.0_dp
@@ -692,13 +716,19 @@ CONTAINS
       END IF
 
       CALL get_qs_env(qs_env, atomic_kind_set=atomic_kind_set, qs_kind_set=qs_kind_set, natom=natom, &
-                      dft_control=dft_control, kpoints=kpoints, para_env=para_env)
+                      dft_control=dft_control, kpoints=kpoints, para_env=para_env, cell=cell)
 
       IF (do_kpoints_prv) THEN
          nimg = dft_control%nimages
+         ncell_RI = nimg
+         IF (do_hfx_kpoints_prv) THEN
+            nimg = SIZE(t3c, 1)
+            ncell_RI = SIZE(t3c, 2)
+         END IF
          CALL get_kpoint_info(kpoints, cell_to_index=cell_to_index)
       ELSE
          nimg = 1
+         ncell_RI = 1
       END IF
 
       IF (do_kpoints_prv) THEN
@@ -707,15 +737,19 @@ CONTAINS
       END IF
 
       !Do a first loop over the nl and count the blocks present
-      ALLOCATE (nblk(nimg, nimg))
+      ALLOCATE (nblk(nimg, ncell_RI))
       nblk(:, :) = 0
 
       CALL neighbor_list_3c_iterator_create(nl_3c_iter, nl_3c)
       CALL nl_3c_iter_set_bounds(nl_3c_iter, bounds_i, bounds_j, bounds_k)
 
       DO WHILE (neighbor_list_3c_iterate(nl_3c_iter) == 0)
-         CALL get_3c_iterator_info(nl_3c_iter, ikind=ikind, jkind=jkind, kkind=kkind, &
+         CALL get_3c_iterator_info(nl_3c_iter, iatom=iatom, ikind=ikind, jkind=jkind, kkind=kkind, &
                                    rij=rij, rjk=rjk, rik=rik, cell_j=cell_j, cell_k=cell_k)
+
+         djk = NORM2(rjk)
+         dij = NORM2(rij)
+         dik = NORM2(rik)
 
          IF (do_kpoints_prv) THEN
 
@@ -723,20 +757,20 @@ CONTAINS
                 ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
 
             jcell = cell_to_index(cell_j(1), cell_j(2), cell_j(3))
-            IF (jcell > nimg) CYCLE
+            IF (jcell > nimg .OR. jcell < 1) CYCLE
 
             IF (ANY([cell_k(1), cell_k(2), cell_k(3)] < kp_index_lbounds) .OR. &
                 ANY([cell_k(1), cell_k(2), cell_k(3)] > kp_index_ubounds)) CYCLE
 
             kcell = cell_to_index(cell_k(1), cell_k(2), cell_k(3))
-            IF (kcell > nimg) CYCLE
+            IF (kcell > nimg .OR. kcell < 1) CYCLE
+            IF (do_hfx_kpoints_prv) THEN
+               IF (dik > RI_range) CYCLE
+               kcell = img_to_RI_cell_prv(kcell)
+            END IF
          ELSE
             jcell = 1; kcell = 1
          END IF
-
-         djk = NORM2(rjk)
-         dij = NORM2(rij)
-         dik = NORM2(rik)
 
          CALL get_gto_basis_set(basis_i(ikind)%gto_basis_set, kind_radius=kind_radius_i)
          CALL get_gto_basis_set(basis_j(jkind)%gto_basis_set, kind_radius=kind_radius_j)
@@ -751,14 +785,14 @@ CONTAINS
       CALL neighbor_list_3c_iterator_destroy(nl_3c_iter)
 
       !Do a second loop over the nl to give block indices
-      ALLOCATE (alloc_i(nimg, nimg))
-      ALLOCATE (alloc_j(nimg, nimg))
-      ALLOCATE (alloc_k(nimg, nimg))
-      DO j_img = 1, nimg
-         DO i_img = 1, nimg
-            ALLOCATE (alloc_i(i_img, j_img)%array(nblk(i_img, j_img)))
-            ALLOCATE (alloc_j(i_img, j_img)%array(nblk(i_img, j_img)))
-            ALLOCATE (alloc_k(i_img, j_img)%array(nblk(i_img, j_img)))
+      ALLOCATE (alloc_i(nimg, ncell_RI))
+      ALLOCATE (alloc_j(nimg, ncell_RI))
+      ALLOCATE (alloc_k(nimg, ncell_RI))
+      DO k_img = 1, ncell_RI
+         DO j_img = 1, nimg
+            ALLOCATE (alloc_i(j_img, k_img)%array(nblk(j_img, k_img)))
+            ALLOCATE (alloc_j(j_img, k_img)%array(nblk(j_img, k_img)))
+            ALLOCATE (alloc_k(j_img, k_img)%array(nblk(j_img, k_img)))
          END DO
       END DO
       nblk(:, :) = 0
@@ -771,26 +805,30 @@ CONTAINS
                                    iatom=iatom, jatom=jatom, katom=katom, &
                                    rij=rij, rjk=rjk, rik=rik, cell_j=cell_j, cell_k=cell_k)
 
+         djk = NORM2(rjk)
+         dij = NORM2(rij)
+         dik = NORM2(rik)
+
          IF (do_kpoints_prv) THEN
 
             IF (ANY([cell_j(1), cell_j(2), cell_j(3)] < kp_index_lbounds) .OR. &
                 ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
 
             jcell = cell_to_index(cell_j(1), cell_j(2), cell_j(3))
-            IF (jcell > nimg) CYCLE
+            IF (jcell > nimg .OR. jcell < 1) CYCLE
 
             IF (ANY([cell_k(1), cell_k(2), cell_k(3)] < kp_index_lbounds) .OR. &
                 ANY([cell_k(1), cell_k(2), cell_k(3)] > kp_index_ubounds)) CYCLE
 
             kcell = cell_to_index(cell_k(1), cell_k(2), cell_k(3))
-            IF (kcell > nimg) CYCLE
+            IF (kcell > nimg .OR. kcell < 1) CYCLE
+            IF (do_hfx_kpoints_prv) THEN
+               IF (dik > RI_range) CYCLE
+               kcell = img_to_RI_cell_prv(kcell)
+            END IF
          ELSE
             jcell = 1; kcell = 1
          END IF
-
-         djk = NORM2(rjk)
-         dij = NORM2(rij)
-         dik = NORM2(rik)
 
          CALL get_gto_basis_set(basis_i(ikind)%gto_basis_set, kind_radius=kind_radius_i)
          CALL get_gto_basis_set(basis_j(jkind)%gto_basis_set, kind_radius=kind_radius_j)
@@ -811,18 +849,18 @@ CONTAINS
       CALL neighbor_list_3c_iterator_destroy(nl_3c_iter)
 
 !TODO: Parallelize creation of block list.
-!$OMP PARALLEL DEFAULT(NONE) SHARED(t3c,nimg,nblk,alloc_i,alloc_j,alloc_k) &
-!$OMP PRIVATE(i_img,j_img,nblk_per_thread,A,b)
-      DO j_img = 1, nimg
-         DO i_img = 1, nimg
-            IF (ALLOCATED(alloc_i(i_img, j_img)%array)) THEN
-               nblk_per_thread = nblk(i_img, j_img)/omp_get_num_threads() + 1
+!$OMP PARALLEL DEFAULT(NONE) SHARED(t3c,nimg,nblk,alloc_i,alloc_j,alloc_k,ncell_RI) &
+!$OMP PRIVATE(k_img,j_img,nblk_per_thread,A,b)
+      DO k_img = 1, ncell_RI
+         DO j_img = 1, nimg
+            IF (ALLOCATED(alloc_i(j_img, k_img)%array)) THEN
+               nblk_per_thread = nblk(j_img, k_img)/omp_get_num_threads() + 1
                a = omp_get_thread_num()*nblk_per_thread + 1
-               b = MIN(a + nblk_per_thread, nblk(i_img, j_img))
-               CALL dbt_reserve_blocks(t3c(i_img, j_img), &
-                                       alloc_i(i_img, j_img)%array(a:b), &
-                                       alloc_j(i_img, j_img)%array(a:b), &
-                                       alloc_k(i_img, j_img)%array(a:b))
+               b = MIN(a + nblk_per_thread, nblk(j_img, k_img))
+               CALL dbt_reserve_blocks(t3c(j_img, k_img), &
+                                       alloc_i(j_img, k_img)%array(a:b), &
+                                       alloc_j(j_img, k_img)%array(a:b), &
+                                       alloc_k(j_img, k_img)%array(a:b))
             END IF
          END DO
       END DO
@@ -954,13 +992,13 @@ CONTAINS
                 ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
 
             jcell = cell_to_index(cell_j(1), cell_j(2), cell_j(3))
-            IF (jcell > nimg) CYCLE
+            IF (jcell > nimg .OR. jcell < 1) CYCLE
 
             IF (ANY([cell_k(1), cell_k(2), cell_k(3)] < kp_index_lbounds) .OR. &
                 ANY([cell_k(1), cell_k(2), cell_k(3)] > kp_index_ubounds)) CYCLE
 
             kcell = cell_to_index(cell_k(1), cell_k(2), cell_k(3))
-            IF (kcell > nimg) CYCLE
+            IF (kcell > nimg .OR. kcell < 1) CYCLE
          ELSE
             jcell = 1; kcell = 1
          END IF
@@ -1423,13 +1461,13 @@ CONTAINS
                 ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
 
             jcell = cell_to_index(cell_j(1), cell_j(2), cell_j(3))
-            IF (jcell > nimg) CYCLE
+            IF (jcell > nimg .OR. jcell < 1) CYCLE
 
             IF (ANY([cell_k(1), cell_k(2), cell_k(3)] < kp_index_lbounds) .OR. &
                 ANY([cell_k(1), cell_k(2), cell_k(3)] > kp_index_ubounds)) CYCLE
 
             kcell = cell_to_index(cell_k(1), cell_k(2), cell_k(3))
-            IF (kcell > nimg) CYCLE
+            IF (kcell > nimg .OR. kcell < 1) CYCLE
 
          ELSE
             jcell = 1; kcell = 1
@@ -1725,7 +1763,7 @@ CONTAINS
       CALL timestop(handle)
    END SUBROUTINE build_3c_derivatives
 
-   ! **************************************************************************************************
+! **************************************************************************************************
 !> \brief Build 3-center integral tensor
 !> \param t3c empty DBCSR tensor
 !>            Should be of shape (1,1) if no kpoints are used and of shape (nimages, nimages)
@@ -1743,16 +1781,20 @@ CONTAINS
 !>        2: calculate (ij|k) integrals
 !> \param do_kpoints ...
 !> this routine requires that libint has been static initialised somewhere else
+!> \param do_hfx_kpoints ...
 !> \param desymmetrize ...
 !> \param bounds_i ...
 !> \param bounds_j ...
 !> \param bounds_k ...
+!> \param RI_range ...
+!> \param img_to_RI_cell ...
 ! **************************************************************************************************
    SUBROUTINE build_3c_integrals(t3c, filter_eps, qs_env, &
                                  nl_3c, basis_i, basis_j, basis_k, &
                                  potential_parameter, int_eps, &
-                                 op_pos, do_kpoints, desymmetrize, &
-                                 bounds_i, bounds_j, bounds_k)
+                                 op_pos, do_kpoints, do_hfx_kpoints, desymmetrize, &
+                                 bounds_i, bounds_j, bounds_k, &
+                                 RI_range, img_to_RI_cell)
 
       TYPE(dbt_type), DIMENSION(:, :), INTENT(INOUT)     :: t3c
       REAL(KIND=dp), INTENT(IN)                          :: filter_eps
@@ -1762,8 +1804,10 @@ CONTAINS
       TYPE(libint_potential_type), INTENT(IN)            :: potential_parameter
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: int_eps
       INTEGER, INTENT(IN), OPTIONAL                      :: op_pos
-      LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints, desymmetrize
+      LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints, do_hfx_kpoints, desymmetrize
       INTEGER, DIMENSION(2), INTENT(IN), OPTIONAL        :: bounds_i, bounds_j, bounds_k
+      REAL(dp), INTENT(IN), OPTIONAL                     :: RI_range
+      INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: img_to_RI_cell
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'build_3c_integrals'
 
@@ -1771,8 +1815,9 @@ CONTAINS
          block_start_k, egfi, handle, handle2, i, iatom, ibasis, ikind, ilist, imax, iset, jatom, &
          jcell, jkind, jset, katom, kcell, kkind, kset, m_max, max_ncoi, max_ncoj, max_ncok, &
          max_nset, max_nsgfi, max_nsgfj, max_nsgfk, maxli, maxlj, maxlk, mepos, natom, nbasis, &
-         ncoi, ncoj, ncok, nimg, nseti, nsetj, nsetk, nthread, op_ij, op_jk, op_pos_prv, sgfi, &
-         sgfj, sgfk, unit_id
+         ncell_RI, ncoi, ncoj, ncok, nimg, nseti, nsetj, nsetk, nthread, op_ij, op_jk, op_pos_prv, &
+         sgfi, sgfj, sgfk, unit_id
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: img_to_RI_cell_prv
       INTEGER, DIMENSION(2)                              :: bo
       INTEGER, DIMENSION(3)                              :: blk_size, cell_j, cell_k, &
                                                             kp_index_lbounds, kp_index_ubounds, sp
@@ -1782,19 +1827,23 @@ CONTAINS
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgf_i, first_sgf_j, first_sgf_k
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
       LOGICAL                                            :: block_not_zero, debug, desymmetrize_prv, &
-                                                            do_kpoints_prv, found, skip
+                                                            do_hfx_kpoints_prv, do_kpoints_prv, &
+                                                            found, skip
       REAL(KIND=dp)                                      :: dij, dik, djk, dr_ij, dr_ik, dr_jk, &
                                                             kind_radius_i, kind_radius_j, &
                                                             kind_radius_k, prefac, sijk_ext
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer, &
                                                             max_contraction_i, max_contraction_j, &
                                                             max_contraction_k
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: block_t, dummy_block_t, sijk, sijk_contr
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: block_t, dummy_block_t, sijk, &
+                                                            sijk_contr, tmp_ijk
+      REAL(KIND=dp), DIMENSION(1, 1, 1)                  :: counter
       REAL(KIND=dp), DIMENSION(3)                        :: ri, rij, rik, rj, rjk, rk
       REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_i, set_radius_j, set_radius_k
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: rpgf_i, rpgf_j, rpgf_k, sphi_i, sphi_j, &
                                                             sphi_k, zeti, zetj, zetk
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: spi, spk, tspj
       TYPE(cp_libint_t)                                  :: lib
       TYPE(dbt_type)                                     :: t_3c_tmp
@@ -1813,6 +1862,22 @@ CONTAINS
          do_kpoints_prv = do_kpoints
       ELSE
          do_kpoints_prv = .FALSE.
+      END IF
+
+      IF (PRESENT(do_hfx_kpoints)) THEN
+         do_hfx_kpoints_prv = do_hfx_kpoints
+      ELSE
+         do_hfx_kpoints_prv = .FALSE.
+      END IF
+      IF (do_hfx_kpoints_prv) THEN
+         CPASSERT(do_kpoints_prv)
+         CPASSERT(PRESENT(RI_range))
+         CPASSERT(PRESENT(img_to_RI_cell))
+      END IF
+
+      IF (PRESENT(img_to_RI_cell)) THEN
+         ALLOCATE (img_to_RI_cell_prv(SIZE(img_to_RI_cell)))
+         img_to_RI_cell_prv(:) = img_to_RI_cell
       END IF
 
       IF (PRESENT(desymmetrize)) THEN
@@ -1856,22 +1921,34 @@ CONTAINS
 
       NULLIFY (qs_kind_set, atomic_kind_set)
 
-      CALL alloc_block_3c(t3c, nl_3c, basis_i, basis_j, basis_k, qs_env, &
-                          potential_parameter, op_pos=op_pos_prv, do_kpoints=do_kpoints, &
-                          bounds_i=bounds_i, bounds_j=bounds_j, bounds_k=bounds_k)
+      CALL alloc_block_3c(t3c, nl_3c, basis_i, basis_j, basis_k, qs_env, potential_parameter, &
+                          op_pos=op_pos_prv, do_kpoints=do_kpoints, do_hfx_kpoints=do_hfx_kpoints, &
+                          bounds_i=bounds_i, bounds_j=bounds_j, bounds_k=bounds_k, &
+                          RI_range=RI_range, img_to_RI_cell=img_to_RI_cell)
 
       ! get stuff
-      CALL get_qs_env(qs_env, atomic_kind_set=atomic_kind_set, qs_kind_set=qs_kind_set, &
+      CALL get_qs_env(qs_env, atomic_kind_set=atomic_kind_set, qs_kind_set=qs_kind_set, cell=cell, &
                       natom=natom, kpoints=kpoints, dft_control=dft_control, para_env=para_env)
 
       IF (do_kpoints_prv) THEN
          nimg = dft_control%nimages
+         ncell_RI = nimg
+         IF (do_hfx_kpoints_prv) THEN
+            nimg = SIZE(t3c, 1)
+            ncell_RI = SIZE(t3c, 2)
+         END IF
          CALL get_kpoint_info(kpoints, cell_to_index=cell_to_index)
       ELSE
          nimg = 1
+         ncell_RI = 1
       END IF
 
-      CPASSERT(ALL(SHAPE(t3c) == [nimg, nimg]))
+      IF (do_hfx_kpoints_prv) THEN
+         CPASSERT(op_pos_prv == 2)
+         CPASSERT(.NOT. desymmetrize_prv)
+      ELSE IF (do_kpoints_prv) THEN
+         CPASSERT(ALL(SHAPE(t3c) == [nimg, ncell_RI]))
+      END IF
 
       !Need the max l for each basis for libint and max nset, nco and nsgf for LIBXSMM contraction
       nbasis = SIZE(basis_i)
@@ -1976,6 +2053,8 @@ CONTAINS
          kp_index_ubounds = UBOUND(cell_to_index)
       END IF
 
+      counter = 1.0_dp
+
       nthread = 1
 !$    nthread = omp_get_max_threads()
 
@@ -1983,7 +2062,8 @@ CONTAINS
 !$OMP SHARED (nthread,do_kpoints_prv,kp_index_lbounds,kp_index_ubounds,maxli,maxlk,maxlj,bounds_i,&
 !$OMP         bounds_j,bounds_k,nimg,basis_i,basis_j,basis_k,dr_ij,dr_jk,dr_ik,ncoset,&
 !$OMP         potential_parameter,int_eps,t3c,tspj,spi,spk,debug,cell_to_index,max_ncoi,max_nsgfk,&
-!$OMP         max_nsgfj,max_ncok,natom,nl_3c) &
+!$OMP         max_nsgfj,max_ncok,natom,nl_3c,cell,op_pos_prv,do_hfx_kpoints_prv,RI_range,ncell_RI, &
+!$OMP         img_to_RI_cell_prv) &
 !$OMP PRIVATE (lib,nl_3c_iter,ikind,jkind,kkind,iatom,jatom,katom,rij,rjk,rik,cell_j,cell_k,&
 !$OMP          prefac,jcell,kcell,first_sgf_i,lmax_i,lmin_i,npgfi,nseti,nsgfi,rpgf_i,set_radius_i,&
 !$OMP          sphi_i,zeti,kind_radius_i,first_sgf_j,lmax_j,lmin_j,npgfj,nsetj,nsgfj,rpgf_j,&
@@ -1992,7 +2072,7 @@ CONTAINS
 !$OMP          sgfk,sijk,ri,rj,rk,sijk_ext,block_not_zero,max_contraction_i,max_contraction_j,&
 !$OMP          max_contraction_k,iset,jset,kset,block_t,blk_size,sijk_contr,cpp_buffer,ccp_buffer,&
 !$OMP          block_start_j,block_end_j,block_start_k,block_end_k,block_start_i,block_end_i,found,&
-!$OMP          dummy_block_t,sp,handle2,mepos,bo,skip)
+!$OMP          dummy_block_t,sp,handle2,mepos,bo,skip,tmp_ijk,i)
 
       mepos = 0
 !$    mepos = omp_get_thread_num()
@@ -2032,6 +2112,10 @@ CONTAINS
                                    rij=rij, rjk=rjk, rik=rik, cell_j=cell_j, cell_k=cell_k)
          IF (skip) EXIT
 
+         djk = NORM2(rjk)
+         dij = NORM2(rij)
+         dik = NORM2(rik)
+
          IF (do_kpoints_prv) THEN
             prefac = 0.5_dp
          ELSEIF (nl_3c%sym == symmetric_jk) THEN
@@ -2042,9 +2126,18 @@ CONTAINS
             ELSE
                prefac = 1.0_dp
             END IF
+         ELSEIF (nl_3c%sym == symmetric_ij) THEN
+            IF (iatom == jatom) THEN
+               ! factor 0.5 due to double-counting of diagonal blocks
+               ! (we desymmetrize by adding transpose)
+               prefac = 0.5_dp
+            ELSE
+               prefac = 1.0_dp
+            END IF
          ELSE
             prefac = 1.0_dp
          END IF
+         IF (do_hfx_kpoints_prv) prefac = 1.0_dp
 
          IF (do_kpoints_prv) THEN
 
@@ -2052,14 +2145,18 @@ CONTAINS
                 ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
 
             jcell = cell_to_index(cell_j(1), cell_j(2), cell_j(3))
-            IF (jcell > nimg) CYCLE
+            IF (jcell > nimg .OR. jcell < 1) CYCLE
 
             IF (ANY([cell_k(1), cell_k(2), cell_k(3)] < kp_index_lbounds) .OR. &
                 ANY([cell_k(1), cell_k(2), cell_k(3)] > kp_index_ubounds)) CYCLE
 
             kcell = cell_to_index(cell_k(1), cell_k(2), cell_k(3))
-            IF (kcell > nimg) CYCLE
-
+            IF (kcell > nimg .OR. kcell < 1) CYCLE
+            !In case of HFX k-points, we only consider P^k if d_ik <= RI_range
+            IF (do_hfx_kpoints_prv) THEN
+               IF (dik > RI_range) CYCLE
+               kcell = img_to_RI_cell_prv(kcell)
+            END IF
          ELSE
             jcell = 1; kcell = 1
          END IF
@@ -2075,10 +2172,6 @@ CONTAINS
          CALL get_gto_basis_set(basis_k(kkind)%gto_basis_set, first_sgf=first_sgf_k, lmax=lmax_k, lmin=lmin_k, &
                                 npgf=npgfk, nset=nsetk, nsgf_set=nsgfk, pgf_radius=rpgf_k, set_radius=set_radius_k, &
                                 sphi=sphi_k, zet=zetk, kind_radius=kind_radius_k)
-
-         djk = NORM2(rjk)
-         dij = NORM2(rij)
-         dik = NORM2(rik)
 
          IF (kind_radius_j + kind_radius_i + dr_ij < dij) CYCLE
          IF (kind_radius_j + kind_radius_k + dr_jk < djk) CYCLE
@@ -2140,11 +2233,26 @@ CONTAINS
                      rj = rij ! ri + rij
                      rk = rik ! ri + rik
 
-                     CALL eri_3center(sijk, &
-                                      lmin_j(jset), lmax_j(jset), npgfj(jset), zetj(:, jset), rpgf_j(:, jset), rj, &
-                                      lmin_k(kset), lmax_k(kset), npgfk(kset), zetk(:, kset), rpgf_k(:, kset), rk, &
-                                      lmin_i(iset), lmax_i(iset), npgfi(iset), zeti(:, iset), rpgf_i(:, iset), ri, &
-                                      djk, dij, dik, lib, potential_parameter, int_abc_ext=sijk_ext)
+                     IF (op_pos_prv == 1) THEN
+                        CALL eri_3center(sijk, &
+                                         lmin_j(jset), lmax_j(jset), npgfj(jset), zetj(:, jset), rpgf_j(:, jset), rj, &
+                                         lmin_k(kset), lmax_k(kset), npgfk(kset), zetk(:, kset), rpgf_k(:, kset), rk, &
+                                         lmin_i(iset), lmax_i(iset), npgfi(iset), zeti(:, iset), rpgf_i(:, iset), ri, &
+                                         djk, dij, dik, lib, potential_parameter, int_abc_ext=sijk_ext)
+                     ELSE
+                        ALLOCATE (tmp_ijk(ncoi, ncoj, ncok))
+                        tmp_ijk = 0.0_Dp
+                        CALL eri_3center(tmp_ijk, &
+                                         lmin_i(iset), lmax_i(iset), npgfi(iset), zeti(:, iset), rpgf_i(:, iset), ri, &
+                                         lmin_j(jset), lmax_j(jset), npgfj(jset), zetj(:, jset), rpgf_j(:, jset), rj, &
+                                         lmin_k(kset), lmax_k(kset), npgfk(kset), zetk(:, kset), rpgf_k(:, kset), rk, &
+                                         dij, dik, djk, lib, potential_parameter, int_abc_ext=sijk_ext)
+                        DO i = 1, ncoi
+                           !TODO: this cannot stay for efficiency (probably)
+                           sijk(:, :, i) = tmp_ijk(i, :, :)
+                        END DO
+                        DEALLOCATE (tmp_ijk)
+                     END IF
 
                      IF (PRESENT(int_eps)) THEN
                         IF (int_eps > sijk_ext*(max_contraction_i(iset)* &
@@ -2216,13 +2324,23 @@ CONTAINS
       CALL neighbor_list_3c_iterator_destroy(nl_3c_iter)
 !$OMP END PARALLEL
 
+      !TODO: deal with hfx_kpoints, because should not filter by 1/2
       IF (nl_3c%sym == symmetric_jk .OR. do_kpoints_prv) THEN
-         DO kcell = 1, nimg
-            DO jcell = 1, nimg
-               ! need half of filter eps because afterwards we add transposed tensor
-               CALL dbt_filter(t3c(jcell, kcell), filter_eps/2)
+
+         IF (.NOT. do_hfx_kpoints_prv) THEN
+            DO kcell = 1, nimg
+               DO jcell = 1, nimg
+                  ! need half of filter eps because afterwards we add transposed tensor
+                  CALL dbt_filter(t3c(jcell, kcell), filter_eps/2)
+               END DO
             END DO
-         END DO
+         ELSE
+            DO kcell = 1, ncell_RI
+               DO jcell = 1, nimg
+                  CALL dbt_filter(t3c(jcell, kcell), filter_eps)
+               END DO
+            END DO
+         END IF
 
          IF (desymmetrize_prv) THEN
             ! add transposed of overlap integrals
@@ -2243,6 +2361,12 @@ CONTAINS
             END DO
             CALL dbt_destroy(t_3c_tmp)
          END IF
+      ELSEIF (nl_3c%sym == symmetric_ij) THEN
+         DO kcell = 1, nimg
+            DO jcell = 1, nimg
+               CALL dbt_filter(t3c(jcell, kcell), filter_eps/2)
+            END DO
+         END DO
       ELSEIF (nl_3c%sym == symmetric_none) THEN
          DO kcell = 1, nimg
             DO jcell = 1, nimg
@@ -2410,7 +2534,7 @@ CONTAINS
                                 iatom=iatom, jatom=jatom, r=rij, cell=cell)
          IF (do_kpoints_prv) THEN
             img = cell_to_index(cell(1), cell(2), cell(3))
-            IF (img > nimg) CYCLE
+            IF (img > nimg .OR. img < 1) CYCLE
          ELSE
             img = 1
          END IF
@@ -2519,11 +2643,13 @@ CONTAINS
 !> \param basis_j ...
 !> \param potential_parameter ...
 !> \param do_kpoints ...
+!> \param do_hfx_kpoints ...
 !> this routine requires that libint has been static initialised somewhere else
 ! **************************************************************************************************
    SUBROUTINE build_2c_integrals(t2c, filter_eps, qs_env, &
                                  nl_2c, basis_i, basis_j, &
-                                 potential_parameter, do_kpoints)
+                                 potential_parameter, &
+                                 do_kpoints, do_hfx_kpoints)
       TYPE(dbcsr_type), DIMENSION(:), INTENT(INOUT)      :: t2c
       REAL(KIND=dp), INTENT(IN)                          :: filter_eps
       TYPE(qs_environment_type), POINTER                 :: qs_env
@@ -2531,20 +2657,21 @@ CONTAINS
          POINTER                                         :: nl_2c
       TYPE(gto_basis_set_p_type), DIMENSION(:)           :: basis_i, basis_j
       TYPE(libint_potential_type), INTENT(IN)            :: potential_parameter
-      LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints
+      LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints, do_hfx_kpoints
 
       CHARACTER(len=*), PARAMETER :: routineN = 'build_2c_integrals'
 
       INTEGER :: handle, i_diag, iatom, ibasis, icol, ikind, imax, img, irow, iset, jatom, jkind, &
          jset, m_max, maxli, maxlj, natom, ncoi, ncoj, nimg, nseti, nsetj, op_prv, sgfi, sgfj, &
          unit_id
-      INTEGER, DIMENSION(3)                              :: cell
+      INTEGER, DIMENSION(3)                              :: cell_j, kp_index_lbounds, &
+                                                            kp_index_ubounds
       INTEGER, DIMENSION(:), POINTER                     :: lmax_i, lmax_j, lmin_i, lmin_j, npgfi, &
                                                             npgfj, nsgfi, nsgfj
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgf_i, first_sgf_j
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
-      LOGICAL                                            :: do_kpoints_prv, do_symmetric, found, &
-                                                            trans
+      LOGICAL                                            :: do_hfx_kpoints_prv, do_kpoints_prv, &
+                                                            do_symmetric, found, trans
       REAL(KIND=dp)                                      :: dab, regularization_RI
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: sij, sij_contr, sij_rs
       REAL(KIND=dp), DIMENSION(3)                        :: ri, rij, rj
@@ -2553,6 +2680,7 @@ CONTAINS
                                                             zetj
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(block_p_type)                                 :: block_t
+      TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_libint_t)                                  :: lib
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(kpoint_type), POINTER                         :: kpoints
@@ -2569,23 +2697,36 @@ CONTAINS
          do_kpoints_prv = .FALSE.
       END IF
 
+      IF (PRESENT(do_hfx_kpoints)) THEN
+         do_hfx_kpoints_prv = do_hfx_kpoints
+      ELSE
+         do_hfx_kpoints_prv = .FALSE.
+      END IF
+      IF (do_hfx_kpoints_prv) THEN
+         CPASSERT(do_kpoints_prv)
+      END IF
+
       op_prv = potential_parameter%potential_type
 
       NULLIFY (qs_kind_set, atomic_kind_set, block_t%block, cell_to_index)
 
       ! get stuff
-      CALL get_qs_env(qs_env, atomic_kind_set=atomic_kind_set, qs_kind_set=qs_kind_set, &
+      CALL get_qs_env(qs_env, atomic_kind_set=atomic_kind_set, qs_kind_set=qs_kind_set, cell=cell, &
                       natom=natom, kpoints=kpoints, dft_control=dft_control, para_env=para_env)
 
       IF (do_kpoints_prv) THEN
-         nimg = dft_control%nimages
+         nimg = SIZE(t2c)
          CALL get_kpoint_info(kpoints, cell_to_index=cell_to_index)
-         regularization_RI = qs_env%mp2_env%ri_rpa_im_time%regularization_RI
+         IF (do_hfx_kpoints_prv) THEN
+            regularization_RI = 0.0_dp
+         ELSE
+            regularization_RI = qs_env%mp2_env%ri_rpa_im_time%regularization_RI
+         END IF
+         kp_index_lbounds = LBOUND(cell_to_index)
+         kp_index_ubounds = UBOUND(cell_to_index)
       ELSE
          nimg = 1
       END IF
-
-      CPASSERT(ALL(SHAPE(t2c) == [nimg]))
 
       ! check for symmetry
       CPASSERT(SIZE(nl_2c) > 0)
@@ -2641,10 +2782,12 @@ CONTAINS
       DO WHILE (neighbor_list_iterate(nl_iterator) == 0)
 
          CALL get_iterator_info(nl_iterator, ikind=ikind, jkind=jkind, &
-                                iatom=iatom, jatom=jatom, r=rij, cell=cell)
+                                iatom=iatom, jatom=jatom, r=rij, cell=cell_j)
          IF (do_kpoints_prv) THEN
-            img = cell_to_index(cell(1), cell(2), cell(3))
-            IF (img > nimg) CYCLE
+            IF (ANY([cell_j(1), cell_j(2), cell_j(3)] < kp_index_lbounds) .OR. &
+                ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
+            img = cell_to_index(cell_j(1), cell_j(2), cell_j(3))
+            IF (img > nimg .OR. img < 1) CYCLE
          ELSE
             img = 1
          END IF
@@ -2717,12 +2860,14 @@ CONTAINS
                   DEALLOCATE (sij_contr)
 
                   ! RI regularization
-                  IF (do_kpoints_prv .AND. cell(1) == 0 .AND. cell(2) == 0 .AND. cell(3) == 0 .AND. &
-                      iatom == jatom .AND. iset == jset) THEN
-                     DO i_diag = 1, nsgfi(iset)
-                        sij_rs(i_diag, i_diag) = sij_rs(i_diag, i_diag) + &
-                                                 regularization_RI*MAX(1.0_dp, 1.0_dp/MINVAL(zeti(:, iset)))
-                     END DO
+                  IF (.NOT. do_hfx_kpoints_prv) THEN
+                     IF (do_kpoints_prv .AND. cell_j(1) == 0 .AND. cell_j(2) == 0 .AND. cell_j(3) == 0 .AND. &
+                         iatom == jatom .AND. iset == jset) THEN
+                        DO i_diag = 1, nsgfi(iset)
+                           sij_rs(i_diag, i_diag) = sij_rs(i_diag, i_diag) + &
+                                                    regularization_RI*MAX(1.0_dp, 1.0_dp/MINVAL(zeti(:, iset)))
+                        END DO
+                     END IF
                   END IF
 
                   CALL block_add("IN", sij_rs, &

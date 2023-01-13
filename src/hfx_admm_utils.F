@@ -60,6 +60,7 @@ MODULE hfx_admm_utils
    USE hfx_pw_methods,                  ONLY: pw_hfx
    USE hfx_ri,                          ONLY: hfx_ri_update_forces,&
                                               hfx_ri_update_ks
+   USE hfx_ri_kp,                       ONLY: hfx_ri_update_ks_kp
    USE hfx_types,                       ONLY: hfx_type
    USE input_constants,                 ONLY: &
         do_admm_aux_exch_func_bee, do_admm_aux_exch_func_bee_libxc, do_admm_aux_exch_func_default, &
@@ -733,10 +734,8 @@ CONTAINS
 
       INTEGER                                            :: handle, img, irep, ispin, mspin, &
                                                             n_rep_hf, nimages, ns, nspins
-      LOGICAL                                            :: distribute_fock_matrix, &
-                                                            do_adiabatic_rescaling, &
-                                                            hfx_treat_lsd_in_core, &
-                                                            s_mstruct_changed, use_virial
+      LOGICAL :: distribute_fock_matrix, do_adiabatic_rescaling, do_kpoints, &
+         hfx_treat_lsd_in_core, s_mstruct_changed, use_virial
       REAL(dp)                                           :: eh1, ehfx, ehfxrt, eold
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: hf_energy
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER :: matrix_ks_1d, matrix_ks_aux_fit, &
@@ -773,7 +772,8 @@ CONTAINS
                       virial=virial, &
                       matrix_ks_im=matrix_ks_im, &
                       s_mstruct_changed=s_mstruct_changed, &
-                      x_data=x_data)
+                      x_data=x_data, &
+                      do_kpoints=do_kpoints)
 
       IF (dft_control%do_admm) THEN
          CALL get_admm_env(qs_env%admm_env, mos_aux_fit=mo_array, matrix_ks_aux_fit=matrix_ks_aux_fit, &
@@ -839,11 +839,19 @@ CONTAINS
          ehfx = 0.0_dp
 
          IF (x_data(irep, 1)%do_hfx_ri) THEN
-            CALL hfx_ri_update_ks(qs_env, x_data(irep, 1)%ri_data, matrix_ks_orb, ehfx, &
-                                  mo_array, rho_ao_orb, &
-                                  s_mstruct_changed, nspins, &
-                                  x_data(irep, 1)%general_parameter%fraction)
+            IF (do_kpoints) THEN
+               !note: the density is taken from the kpoint_type
+               CALL hfx_ri_update_ks_kp(qs_env, x_data(irep, 1)%ri_data, matrix_ks_orb, ehfx, &
+                                        s_mstruct_changed, nspins, &
+                                        x_data(irep, 1)%general_parameter%fraction)
+            ELSE
+               CALL hfx_ri_update_ks(qs_env, x_data(irep, 1)%ri_data, matrix_ks_orb, ehfx, &
+                                     mo_array, rho_ao_orb, &
+                                     s_mstruct_changed, nspins, &
+                                     x_data(irep, 1)%general_parameter%fraction)
+            END IF
             IF (dft_control%do_admm) THEN
+               !TODO: anything to de here for K-points ?!?
                !for ADMMS, we need the exchange matrix k(d) for both spins
                DO ispin = 1, nspins
                   CALL dbcsr_copy(matrix_ks_aux_fit_hfx(ispin)%matrix, matrix_ks_orb(ispin, 1)%matrix, &

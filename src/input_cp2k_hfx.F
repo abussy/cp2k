@@ -537,6 +537,17 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="KP_NGROUPS", &
+                          description="The number of MPI subgroup that work in parallel during the SCF. "// &
+                          "The default value is 1. Using N subgroups should speed up the "// &
+                          "calculation by a factor ~N, at the cost of N times more memory usage.", &
+                          variants=(/"NGROUPS"/), &
+                          usage="KP_NGROUPS {int}", &
+                          repeats=.FALSE., &
+                          default_i_val=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="RI_METRIC", &
                           description="The type of RI operator. "// &
                           "Default is POTENTIAL_TYPE from INTERACTION_POTENTIAL. "// &

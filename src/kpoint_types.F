@@ -49,7 +49,7 @@ MODULE kpoint_types
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'kpoint_types'
 
    PUBLIC :: kpoint_type
-   PUBLIC :: kpoint_create, kpoint_release, get_kpoint_info
+   PUBLIC :: kpoint_create, kpoint_release, get_kpoint_info, set_kpoint_info
    PUBLIC :: read_kpoint_section, write_kpoint_info
    PUBLIC :: kpoint_env_type, kpoint_env_p_type
    PUBLIC :: kpoint_env_create, get_kpoint_env
@@ -157,7 +157,8 @@ MODULE kpoint_types
       INTEGER, DIMENSION(:, :, :), POINTER    :: cell_to_index => Null()
       INTEGER, DIMENSION(:, :), POINTER       :: index_to_cell => Null()
       TYPE(neighbor_list_set_p_type), &
-         DIMENSION(:), POINTER                :: sab_nl => Null()
+         DIMENSION(:), POINTER                :: sab_nl => Null(), &
+                                                 sab_nl_nosym => Null()
       ! environment
       TYPE(kpoint_env_p_type), DIMENSION(:), &
          POINTER                              :: kp_env => Null()
@@ -302,13 +303,16 @@ CONTAINS
 !> \param nkp_groups    number of kpoint groups
 !> \param kp_dist       kpoints distribution on groups
 !> \param cell_to_index given a cell triple, returns the real space index
+!> \param index_to_cell ...
 !> \param sab_nl        neighbourlist that defines real space matrices
+!> \param sab_nl_nosym neighbourlist that defines real space matrices, non-symmetric
 !> \author JGH
 ! **************************************************************************************************
    SUBROUTINE get_kpoint_info(kpoint, kp_scheme, nkp_grid, kp_shift, symmetry, verbose, &
                               full_grid, use_real_wfn, eps_geo, parallel_group_size, kp_range, nkp, xkp, wkp, &
                               para_env, blacs_env_all, para_env_kp, para_env_inter_kp, blacs_env, &
-                              kp_env, mpools, iogrp, nkp_groups, kp_dist, cell_to_index, sab_nl)
+                              kp_env, mpools, iogrp, nkp_groups, kp_dist, cell_to_index, index_to_cell, &
+                              sab_nl, sab_nl_nosym)
       TYPE(kpoint_type), INTENT(IN)                      :: kpoint
       CHARACTER(LEN=*), OPTIONAL                         :: kp_scheme
       INTEGER, DIMENSION(3), OPTIONAL                    :: nkp_grid
@@ -332,8 +336,9 @@ CONTAINS
       INTEGER, OPTIONAL                                  :: nkp_groups
       INTEGER, DIMENSION(:, :), OPTIONAL, POINTER        :: kp_dist
       INTEGER, DIMENSION(:, :, :), OPTIONAL, POINTER     :: cell_to_index
+      INTEGER, DIMENSION(:, :), OPTIONAL, POINTER        :: index_to_cell
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         OPTIONAL, POINTER                               :: sab_nl
+         OPTIONAL, POINTER                               :: sab_nl, sab_nl_nosym
 
       IF (PRESENT(kp_scheme)) kp_scheme = kpoint%kp_scheme
       IF (PRESENT(nkp_grid)) nkp_grid = kpoint%nkp_grid
@@ -364,7 +369,9 @@ CONTAINS
       IF (PRESENT(mpools)) mpools => kpoint%mpools
 
       IF (PRESENT(cell_to_index)) cell_to_index => kpoint%cell_to_index
+      IF (PRESENT(index_to_cell)) index_to_cell => kpoint%index_to_cell
       IF (PRESENT(sab_nl)) sab_nl => kpoint%sab_nl
+      IF (PRESENT(sab_nl_nosym)) sab_nl_nosym => kpoint%sab_nl_nosym
 
    END SUBROUTINE get_kpoint_info
 
@@ -395,13 +402,16 @@ CONTAINS
 !> \param nkp_groups    number of kpoint groups
 !> \param kp_dist       kpoints distribution on groups
 !> \param cell_to_index given a cell triple, returns the real space index
+!> \param index_to_cell ...
 !> \param sab_nl        neighbourlist that defines real space matrices
+!> \param sab_nl_nosym  neighbourlist that defines real space matrices
 !> \author JGH
 ! **************************************************************************************************
    SUBROUTINE set_kpoint_info(kpoint, kp_scheme, nkp_grid, kp_shift, symmetry, verbose, &
                               full_grid, use_real_wfn, eps_geo, parallel_group_size, kp_range, nkp, xkp, wkp, &
                               para_env, blacs_env_all, para_env_kp, para_env_inter_kp, blacs_env, &
-                              kp_env, mpools, iogrp, nkp_groups, kp_dist, cell_to_index, sab_nl)
+                              kp_env, mpools, iogrp, nkp_groups, kp_dist, cell_to_index, index_to_cell, &
+                              sab_nl, sab_nl_nosym)
       TYPE(kpoint_type), INTENT(INOUT)                   :: kpoint
       CHARACTER(LEN=*), OPTIONAL                         :: kp_scheme
       INTEGER, DIMENSION(3), OPTIONAL                    :: nkp_grid
@@ -425,8 +435,9 @@ CONTAINS
       INTEGER, OPTIONAL                                  :: nkp_groups
       INTEGER, DIMENSION(:, :), OPTIONAL, POINTER        :: kp_dist
       INTEGER, DIMENSION(:, :, :), OPTIONAL, POINTER     :: cell_to_index
+      INTEGER, DIMENSION(:, :), OPTIONAL, POINTER        :: index_to_cell
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         OPTIONAL, POINTER                               :: sab_nl
+         OPTIONAL, POINTER                               :: sab_nl, sab_nl_nosym
 
       IF (PRESENT(kp_scheme)) kpoint%kp_scheme = kp_scheme
       IF (PRESENT(nkp_grid)) kpoint%nkp_grid = nkp_grid
@@ -456,10 +467,16 @@ CONTAINS
       IF (PRESENT(kp_env)) kpoint%kp_env => kp_env
       IF (PRESENT(mpools)) kpoint%mpools => mpools
       IF (PRESENT(sab_nl)) kpoint%sab_nl => sab_nl
+      IF (PRESENT(sab_nl_nosym)) kpoint%sab_nl_nosym => sab_nl_nosym
 
       IF (PRESENT(cell_to_index)) THEN
          IF (ASSOCIATED(kpoint%cell_to_index)) DEALLOCATE (kpoint%cell_to_index)
          kpoint%cell_to_index => cell_to_index
+      END IF
+
+      IF (PRESENT(index_to_cell)) THEN
+         IF (ASSOCIATED(kpoint%index_to_cell)) DEALLOCATE (kpoint%index_to_cell)
+         kpoint%index_to_cell => index_to_cell
       END IF
 
    END SUBROUTINE set_kpoint_info

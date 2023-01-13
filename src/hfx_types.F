@@ -35,6 +35,8 @@ MODULE hfx_types
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
    USE cp_units,                        ONLY: cp_unit_from_cp2k
+   USE dbcsr_api,                       ONLY: dbcsr_release,&
+                                              dbcsr_type
    USE dbt_api,                         ONLY: &
         dbt_create, dbt_default_distvec, dbt_destroy, dbt_distribution_destroy, &
         dbt_distribution_new, dbt_distribution_type, dbt_mp_dims_create, dbt_pgrid_create, &
@@ -367,9 +369,9 @@ MODULE hfx_types
    TYPE hfx_ri_type
       ! input parameters (see input_cp2k_hfx)
       REAL(KIND=dp) :: filter_eps, filter_eps_2c, filter_eps_storage, filter_eps_mo, &
-                       eps_lanczos, eps_pgf_orb, eps_eigval
+                       eps_lanczos, eps_pgf_orb, eps_eigval, kp_RI_range, kp_image_range
       INTEGER :: t2c_sqrt_order, max_iter_lanczos, flavor, unit_nr_dbcsr, unit_nr, &
-                 min_bsize, max_bsize_MO, t2c_method, nelectron_total, input_flavor
+                 min_bsize, max_bsize_MO, t2c_method, nelectron_total, input_flavor, ncell_RI, nimg
       LOGICAL :: check_2c_inv, calc_condnum
 
       TYPE(libint_potential_type) :: ri_metric
@@ -393,12 +395,18 @@ MODULE hfx_types
       INTEGER, DIMENSION(:), ALLOCATABLE :: bsizes_RI, bsizes_AO, bsizes_RI_split, bsizes_AO_split, &
                                             bsizes_RI_fit, bsizes_AO_fit
 
+      ! KP RI-HFX basis info
+      INTEGER, DIMENSION(:), ALLOCATABLE ::  img_to_RI_cell, present_images
+
       ! Note: changed static DIMENSION(1,1) of dbt_type to allocatables as workaround for gfortran 8.3.0,
       ! with static dimension gfortran gets stuck during compilation
 
       ! 2c tensors in (RI | RI) format for forces
       TYPE(dbt_type), DIMENSION(:, :), ALLOCATABLE    :: t_2c_inv
       TYPE(dbt_type), DIMENSION(:, :), ALLOCATABLE    :: t_2c_pot
+
+      ! 2c tensor in matrix format for K-points RI-HFX
+      TYPE(dbcsr_type), DIMENSION(:, :), ALLOCATABLE  :: mat_2c_pot
 
       ! 2c tensor in (RI | RI) format for contraction
       TYPE(dbt_type), DIMENSION(:, :), ALLOCATABLE    :: t_2c_int
@@ -679,6 +687,9 @@ CONTAINS
                CALL erfc_cutoff(actual_x_data%screening_parameter%eps_schwarz, &
                                 actual_x_data%potential_parameter%omega, &
                                 actual_x_data%potential_parameter%cutoff_radius)
+            END IF
+            IF (actual_x_data%potential_parameter%potential_type == do_potential_id) THEN
+               actual_x_data%potential_parameter%cutoff_radius = 0.0_dp
             END IF
 
             !! LOAD_BALANCE section
@@ -1111,6 +1122,10 @@ CONTAINS
          IF (.NOT. explicit) THEN
             ri_metric%cutoff_radius = hfx_pot%cutoff_radius
          END IF
+
+         IF (ri_metric%potential_type == do_potential_short) &
+            CALL erfc_cutoff(ri_data%eps_schwarz, ri_metric%omega, ri_metric%cutoff_radius)
+         IF (ri_metric%potential_type == do_potential_id) ri_metric%cutoff_radius = 0.0_dp
       END ASSOCIATE
 
       CALL section_vals_val_get(ri_section, "2C_MATRIX_FUNCTIONS", i_val=ri_data%t2c_method)
@@ -1391,11 +1406,11 @@ CONTAINS
                  dbcsr_time => ri_data%dbcsr_time, num_pe => ri_data%num_pe)
          my_flop_rate = REAL(dbcsr_nflop, dp)/(1.0E09_dp*ri_data%dbcsr_time)
          IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(/T2,A,T73,ES8.2)") &
-            "RI-HFX PERFORMANCE| DBCSR total number of flops:", REAL(dbcsr_nflop*num_pe, dp)
+            "RI-HFX PERFORMANCE| DBT total number of flops:", REAL(dbcsr_nflop*num_pe, dp)
          IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T2,A,T66,F15.2)") &
-            "RI-HFX PERFORMANCE| DBCSR total execution time:", dbcsr_time
+            "RI-HFX PERFORMANCE| DBT total execution time:", dbcsr_time
          IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T2,A,T66,F15.2)") &
-            "RI-HFX PERFORMANCE| DBCSR flop rate (Gflops / MPI rank):", my_flop_rate
+            "RI-HFX PERFORMANCE| DBT flop rate (Gflops / MPI rank):", my_flop_rate
       END ASSOCIATE
    END SUBROUTINE
 
@@ -1410,7 +1425,7 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'hfx_ri_release'
 
-      INTEGER                                            :: handle, i_mem, ispin, j_mem, unused
+      INTEGER                                            :: handle, i, i_mem, ispin, j, j_mem, unused
       LOGICAL                                            :: my_write_stats
 
       CALL timeset(routineN, handle)
@@ -1455,14 +1470,35 @@ CONTAINS
             CALL dealloc_containers(ri_data%store_3c(i_mem, j_mem), unused)
          END DO
          END DO
-         CALL dbt_destroy(ri_data%t_3c_int_ctr_1(1, 1))
+
+         DO j = 1, SIZE(ri_data%t_3c_int_ctr_1, 2)
+            DO i = 1, SIZE(ri_data%t_3c_int_ctr_1, 1)
+               CALL dbt_destroy(ri_data%t_3c_int_ctr_1(i, j))
+            END DO
+         END DO
          DEALLOCATE (ri_data%t_3c_int_ctr_1)
-         CALL dbt_destroy(ri_data%t_3c_int_ctr_2(1, 1))
+
+         DO j = 1, SIZE(ri_data%t_3c_int_ctr_2, 2)
+            DO i = 1, SIZE(ri_data%t_3c_int_ctr_2, 1)
+               CALL dbt_destroy(ri_data%t_3c_int_ctr_2(i, j))
+            END DO
+         END DO
          DEALLOCATE (ri_data%t_3c_int_ctr_2)
-         CALL dbt_destroy(ri_data%t_3c_int_ctr_3(1, 1))
+
+         DO j = 1, SIZE(ri_data%t_3c_int_ctr_3, 2)
+            DO i = 1, SIZE(ri_data%t_3c_int_ctr_3, 1)
+               CALL dbt_destroy(ri_data%t_3c_int_ctr_3(i, j))
+            END DO
+         END DO
          DEALLOCATE (ri_data%t_3c_int_ctr_3)
-         CALL dbt_destroy(ri_data%t_2c_int(1, 1))
+
+         DO j = 1, SIZE(ri_data%t_2c_int, 2)
+            DO i = 1, SIZE(ri_data%t_2c_int, 1)
+               CALL dbt_destroy(ri_data%t_2c_int(i, j))
+            END DO
+         END DO
          DEALLOCATE (ri_data%t_2c_int)
+
          DEALLOCATE (ri_data%starts_array_mem_block, ri_data%ends_array_mem_block, &
                      ri_data%starts_array_mem, ri_data%ends_array_mem)
          DEALLOCATE (ri_data%starts_array_RI_mem_block, ri_data%ends_array_RI_mem_block, &
@@ -1492,10 +1528,28 @@ CONTAINS
          DEALLOCATE (ri_data%t_3c_ctr_KS_copy)
       END IF
 
-      CALL dbt_destroy(ri_data%t_2c_inv(1, 1))
+      DO j = 1, SIZE(ri_data%t_2c_inv, 2)
+         DO i = 1, SIZE(ri_data%t_2c_inv, 1)
+            CALL dbt_destroy(ri_data%t_2c_inv(i, j))
+         END DO
+      END DO
       DEALLOCATE (ri_data%t_2c_inv)
-      CALL dbt_destroy(ri_data%t_2c_pot(1, 1))
+
+      DO j = 1, SIZE(ri_data%t_2c_pot, 2)
+         DO i = 1, SIZE(ri_data%t_2c_pot, 1)
+            CALL dbt_destroy(ri_data%t_2c_pot(i, j))
+         END DO
+      END DO
       DEALLOCATE (ri_data%t_2c_pot)
+
+      IF (ALLOCATED(ri_data%mat_2c_pot)) THEN
+         DO j = 1, SIZE(ri_data%mat_2c_pot, 2)
+            DO i = 1, SIZE(ri_data%mat_2c_pot, 1)
+               CALL dbcsr_release(ri_data%mat_2c_pot(i, j))
+            END DO
+         END DO
+         DEALLOCATE (ri_data%mat_2c_pot)
+      END IF
 
       CALL timestop(handle)
    END SUBROUTINE
