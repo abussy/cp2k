@@ -111,21 +111,21 @@ CONTAINS
                np = MIN(99999, SIZE(particles_z))
             END IF
 
-            WRITE (unit_nr, '(I5,3f12.6)') np, 0.0_dp, 0._dp, 0._dp !start of cube
+            WRITE (unit_nr, '(I5,3f18.12)') np, 0.0_dp, 0._dp, 0._dp !start of cube
 
-            WRITE (unit_nr, '(I5,3f12.6)') (pw%pw_grid%npts(1) + my_stride(1) - 1)/my_stride(1), &
+            WRITE (unit_nr, '(I5,3f18.12)') (pw%pw_grid%npts(1) + my_stride(1) - 1)/my_stride(1), &
                pw%pw_grid%dh(1, 1)*REAL(my_stride(1), dp), pw%pw_grid%dh(2, 1)*REAL(my_stride(1), dp), &
                pw%pw_grid%dh(3, 1)*REAL(my_stride(1), dp)
-            WRITE (unit_nr, '(I5,3f12.6)') (pw%pw_grid%npts(2) + my_stride(2) - 1)/my_stride(2), &
+            WRITE (unit_nr, '(I5,3f18.12)') (pw%pw_grid%npts(2) + my_stride(2) - 1)/my_stride(2), &
                pw%pw_grid%dh(1, 2)*REAL(my_stride(2), dp), pw%pw_grid%dh(2, 2)*REAL(my_stride(2), dp), &
                pw%pw_grid%dh(3, 2)*REAL(my_stride(2), dp)
-            WRITE (unit_nr, '(I5,3f12.6)') (pw%pw_grid%npts(3) + my_stride(3) - 1)/my_stride(3), &
+            WRITE (unit_nr, '(I5,3f18.12)') (pw%pw_grid%npts(3) + my_stride(3) - 1)/my_stride(3), &
                pw%pw_grid%dh(1, 3)*REAL(my_stride(3), dp), pw%pw_grid%dh(2, 3)*REAL(my_stride(3), dp), &
                pw%pw_grid%dh(3, 3)*REAL(my_stride(3), dp)
 
             IF (PRESENT(particles_z)) THEN
                DO iat = 1, np
-                  WRITE (unit_nr, '(I5,4f12.6)') particles_z(iat), 0._dp, particles_r(:, iat)
+                  WRITE (unit_nr, '(I5,4f18.12)') particles_z(iat), 0._dp, particles_r(:, iat)
                END DO
             END IF
          END IF
