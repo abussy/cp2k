@@ -52,7 +52,8 @@ MODULE hfx_ri_kp
    USE input_cp2k_hfx,                  ONLY: ri_pmat
    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                               section_vals_type,&
-                                              section_vals_val_get
+                                              section_vals_val_get,&
+                                              section_vals_val_set
    USE iterate_matrix,                  ONLY: invert_hotelling
    USE kinds,                           ONLY: dp,&
                                               int_8
@@ -453,6 +454,7 @@ CONTAINS
       IF (MOD(para_env%num_pe, ngroups) .NE. 0) THEN
          CPWARN("KP_NGROUPS must be an integer divisor of the total number of MPI ranks. It was set to 1.")
          ngroups = 1
+         CALL section_vals_val_set(hfx_section, "KP_NGROUPS", i_val=ngroups)
       END IF
       group_size = para_env%num_pe/ngroups
       igroup = para_env%mepos/group_size

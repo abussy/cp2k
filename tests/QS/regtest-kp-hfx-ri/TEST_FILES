@@ -1,0 +1,5 @@
+diamond_gapw_tc.inp                                      11   1.0E-10              -75.322010168064153 
+diamond_gpw_extRI.inp                                    11   1.0E-10               -8.074617620171738
+hBN_gapw_ovlp.inp                                        11   1.0E-10              -87.870659269105602
+hBN_gapw_tc.inp                                          11   1.0E-10              -78.540839469142583
+hBN_gpw_pbe0.inp                                         11   1.0E-10              -11.620965808290228
