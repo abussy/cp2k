@@ -415,33 +415,35 @@ CONTAINS
          DO i_spin = 1, nspins
             CALL dbt_create(ri_data%t_3c_int_ctr_2(1, 1), t_3c_apc(i_spin, i_img))
             CALL dbt_create(ri_data%t_3c_int_ctr_1(1, 1), t_3c_tmp(i_spin, i_img))
-            CALL dbt_batched_contract_init(rho_ao_t(i_spin, i_img))
          END DO
       END DO
       t1 = m_walltime()
       CALL timeset(routineN//"_3c_1", handle2)
-      DO a_img = 1, nimg
-         CALL get_tensor_occupancy(ri_data%t_3c_int_ctr_1(1, a_img), nze, occ)
-         IF (nze == 0) CYCLE
-         DO i_spin = 1, nspins
-            DO c_img = 1, nimg
+      DO i_spin = 1, nspins
+         DO c_img = 1, nimg
+            CALL get_tensor_occupancy(rho_ao_t(i_spin, c_img), nze, occ)
+            IF (nze == 0) CYCLE
+            CALL dbt_batched_contract_init(rho_ao_t(i_spin, c_img))
+
+            DO a_img = 1, nimg
+               CALL get_tensor_occupancy(ri_data%t_3c_int_ctr_1(1, a_img), nze, occ)
+               IF (nze == 0) CYCLE
                i_img = get_apc_index(a_img, c_img, qs_env)
                IF (i_img < 1 .OR. i_img > nimg) CYCLE
-               CALL get_tensor_occupancy(rho_ao_t(i_spin, c_img), nze, occ)
-               IF (nze == 0) CYCLE
+
                CALL dbt_contract(1.0_dp, ri_data%t_3c_int_ctr_1(1, a_img), rho_ao_t(i_spin, c_img), &
                                  1.0_dp, t_3c_tmp(i_spin, i_img), map_1=[1, 2], map_2=[3], &
                                  contract_1=[3], notcontract_1=[1, 2], &
                                  contract_2=[1], notcontract_2=[2], &
                                  filter_eps=ri_data%filter_eps, flop=nflop)
                ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
-            END DO !c_img
-         END DO
-      END DO !a_img
+            END DO !a_img
+            CALL dbt_batched_contract_finalize(rho_ao_t(i_spin, c_img))
+         END DO !c_img
+      END DO !i_spin
 
       DO i_img = 1, nimg
          DO i_spin = 1, nspins
-            CALL dbt_batched_contract_finalize(rho_ao_t(i_spin, i_img))
             CALL dbt_copy(t_3c_tmp(i_spin, i_img), t_3c_apc(i_spin, i_img), move_data=.TRUE.)
             CALL dbt_destroy(t_3c_tmp(i_spin, i_img))
          END DO
