@@ -217,6 +217,9 @@ CONTAINS
          CALL dbt_create(ri_data%t_2c_inv(1, 1), ri_data%t_2c_inv(1, iatom))
       END DO
 
+      ALLOCATE (ri_data%kp_cost(natom, natom, nimg))
+      ri_data%kp_cost = 0.0_dp
+
    END SUBROUTINE adapt_ri_data_to_kp
 
 ! **************************************************************************************************
@@ -343,7 +346,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: batch_ranges, dist1, dist2, idx_to_at_AO
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: ac_pairs
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: sparsity_pattern
-      REAL(dp)                                           :: etmp, fac, occ, pref, t1, t2
+      REAL(dp)                                           :: etmp, fac, occ, pref, t1, t2, t3, t4
       TYPE(cp_1d_logical_p_type), ALLOCATABLE, &
          DIMENSION(:)                                    :: iatom_to_subgroup
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_sub
@@ -434,6 +437,7 @@ CONTAINS
       CALL timeset(routineN//"_3c_1", handle2)
 
       !Loop over a+c images
+      !TODO: n_mem batching? probably unnecessary
       ALLOCATE (ac_pairs(2, nimg))
       DO apc_img = 1, nimg
          IF (ri_data%present_images(apc_img) == 0) CYCLE
@@ -519,6 +523,9 @@ CONTAINS
                pref = 1.0_dp
                IF (iatom == jatom .AND. b_img == 1) pref = 0.5_dp
 
+               !measure the cost of the given i, j, b configuration
+               t3 = m_walltime()
+
                !Get the proper HFX potential 2c integrals (P_i^0|Q_j^b), and multply by RI metric
                CALL timeset(routineN//"_2c", handle2)
                CALL get_ext_2c_int(t_2c_work(1), mat_2c_pot, iatom, jatom, b_img, ri_data, qs_env, &
@@ -578,6 +585,9 @@ CONTAINS
                END DO !i_img
                CALL timestop(handle2)
                CALL dbt_batched_contract_finalize(t_2c_work(3))
+
+               t4 = m_walltime()
+               ri_data%kp_cost(iatom, jatom, b_img) = t4 - t3
             END DO !iatom
          END DO !jatom
          CALL dbt_batched_contract_finalize(ks_t_split(1))
@@ -594,6 +604,7 @@ CONTAINS
       CALL dbt_batched_contract_finalize(t_3c_work_2(2))
       CALL para_env%sync()
       CALL para_env%sum(ri_data%dbcsr_nflop)
+      CALL para_env%sum(ri_data%kp_cost)
       t2 = m_walltime()
       ri_data%dbcsr_time = ri_data%dbcsr_time + t2 - t1
 
@@ -1292,7 +1303,8 @@ CONTAINS
       INTEGER                                            :: i, iblk, igroup, iproc, ir, is, jblk, &
                                                             nocc, tag
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsizes1, bsizes2, idx1, idx2
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: block_dest, block_source, current_dest
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: block_dest, block_source
+      INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: current_dest
       INTEGER, DIMENSION(2)                              :: ind, nblks
       LOGICAL                                            :: found
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: blk
@@ -1350,29 +1362,26 @@ CONTAINS
       ALLOCATE (bsizes1(nblks(1)), bsizes2(nblks(2)))
       CALL dbt_get_info(t2c_main, blk_size_1=bsizes1, blk_size_2=bsizes2)
 
-      ALLOCATE (current_dest(nblks(1), nblks(2)))
+      ALLOCATE (current_dest(nblks(1), nblks(2), 0:ngroups - 1))
+      DO igroup = 0, ngroups - 1
+         !for a given subgroup, need to make the destination available to everyone in the main group
+         current_dest(:, :, igroup) = block_dest(:, :)
+         CALL para_env%bcast(current_dest(:, :, igroup), source=igroup*group_size) !bcast from first proc in sub-group
+      END DO
 
       !Loop over groups, blocks and send/receive
+      ALLOCATE (send_buff(ngroups*nocc), recv_buff(ngroups*nocc))
+      ALLOCATE (send_req(ngroups*nocc), recv_req(ngroups*nocc))
+      ir = 0
+      is = 0
       tag = 0
       DO igroup = 0, ngroups - 1
-
-         ALLOCATE (send_buff(nocc), recv_buff(nocc))
-         ALLOCATE (send_req(nocc), recv_req(nocc))
-         ir = 0
-         is = 0
-
-         !for a given subgroup, need to make the destination available to everyone in the main group
-         current_dest(:, :) = block_dest(:, :)
-         CALL para_env%bcast(current_dest, source=igroup*group_size) !bcast from first proc in sub-group
-
-         nocc = 0
          DO jblk = 1, nblks(2)
             DO iblk = 1, nblks(1)
                IF (block_source(iblk, jblk) == -1) CYCLE
 
                !a unique tag per block
                tag = tag + 1
-               nocc = nocc + 1
 
                found = .FALSE.
                IF (para_env%mepos == block_source(iblk, jblk)) THEN
@@ -1380,21 +1389,21 @@ CONTAINS
                END IF
 
                !If blocks live on same proc, simply copy. Else MPI send/recv
-               IF (block_source(iblk, jblk) == current_dest(iblk, jblk)) THEN
+               IF (block_source(iblk, jblk) == current_dest(iblk, jblk, igroup)) THEN
                   IF (found) CALL dbt_put_block(t2c_sub, [iblk, jblk], SHAPE(blk), blk)
                ELSE
                   IF (para_env%mepos == block_source(iblk, jblk) .AND. found) THEN
-                     ALLOCATE (send_buff(nocc)%array(bsizes1(iblk), bsizes2(jblk)))
-                     send_buff(nocc)%array(:, :) = blk(:, :)
+                     ALLOCATE (send_buff(tag)%array(bsizes1(iblk), bsizes2(jblk)))
+                     send_buff(tag)%array(:, :) = blk(:, :)
                      is = is + 1
-                     CALL para_env%isend(msgin=send_buff(nocc)%array, dest=current_dest(iblk, jblk), &
+                     CALL para_env%isend(msgin=send_buff(tag)%array, dest=current_dest(iblk, jblk, igroup), &
                                          request=send_req(is), tag=tag)
                   END IF
 
-                  IF (para_env%mepos == current_dest(iblk, jblk)) THEN
-                     ALLOCATE (recv_buff(nocc)%array(bsizes1(iblk), bsizes2(jblk)))
+                  IF (para_env%mepos == current_dest(iblk, jblk, igroup)) THEN
+                     ALLOCATE (recv_buff(tag)%array(bsizes1(iblk), bsizes2(jblk)))
                      ir = ir + 1
-                     CALL para_env%irecv(msgout=recv_buff(nocc)%array, source=block_source(iblk, jblk), &
+                     CALL para_env%irecv(msgout=recv_buff(tag)%array, source=block_source(iblk, jblk), &
                                          request=recv_req(ir), tag=tag)
                   END IF
                END IF
@@ -1402,34 +1411,39 @@ CONTAINS
                IF (found) DEALLOCATE (blk)
             END DO
          END DO
+      END DO
 
-         CALL mp_waitall(send_req(1:is))
-         CALL mp_waitall(recv_req(1:ir))
+      CALL mp_waitall(send_req(1:is))
+      CALL mp_waitall(recv_req(1:ir))
+      !clean-up
+      DO i = 1, nocc*ngroups
+         IF (ASSOCIATED(send_buff(i)%array)) DEALLOCATE (send_buff(i)%array)
+      END DO
 
-         !Finally copy the data from the buffer to the sub-tensor
-         nocc = 0
+      !Finally copy the data from the buffer to the sub-tensor
+      tag = 0
+      DO igroup = 0, ngroups - 1
          DO jblk = 1, nblks(2)
             DO iblk = 1, nblks(1)
                IF (block_source(iblk, jblk) == -1) CYCLE
-               nocc = nocc + 1
-               IF (para_env%mepos == current_dest(iblk, jblk) .AND. &
-                   block_source(iblk, jblk) .NE. current_dest(iblk, jblk)) THEN
+               tag = tag + 1
+               IF (para_env%mepos == current_dest(iblk, jblk, igroup) .AND. &
+                   block_source(iblk, jblk) .NE. current_dest(iblk, jblk, igroup)) THEN
 
                   ALLOCATE (blk(bsizes1(iblk), bsizes2(jblk)))
-                  blk(:, :) = recv_buff(nocc)%array(:, :)
+                  blk(:, :) = recv_buff(tag)%array(:, :)
                   CALL dbt_put_block(t2c_sub, [iblk, jblk], SHAPE(blk), blk)
                   DEALLOCATE (blk)
                END IF
             END DO
          END DO
-
-         !clean-up
-         DO i = 1, nocc
-            IF (ASSOCIATED(send_buff(i)%array)) DEALLOCATE (send_buff(i)%array)
-            IF (ASSOCIATED(recv_buff(i)%array)) DEALLOCATE (recv_buff(i)%array)
-         END DO
-         DEALLOCATE (send_buff, recv_buff, send_req, recv_req)
       END DO
+
+      !clean-up
+      DO i = 1, nocc*ngroups
+         IF (ASSOCIATED(recv_buff(i)%array)) DEALLOCATE (recv_buff(i)%array)
+      END DO
+      DEALLOCATE (send_buff, recv_buff, send_req, recv_req)
       CALL dbt_finalize(t2c_sub)
 
    END SUBROUTINE copy_2c_to_subgroup
@@ -1457,7 +1471,8 @@ CONTAINS
                                                             jblk, kblk, nocc, tag
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsizes1, bsizes2, bsizes3, idx1, idx2, &
                                                             idx3
-      INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: block_dest, block_source, current_dest
+      INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: block_dest, block_source
+      INTEGER, ALLOCATABLE, DIMENSION(:, :, :, :)        :: current_dest
       INTEGER, DIMENSION(3)                              :: ind, nblks
       LOGICAL                                            :: filter_at, found
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: blk
@@ -1525,22 +1540,20 @@ CONTAINS
       ALLOCATE (bsizes1(nblks(1)), bsizes2(nblks(2)), bsizes3(nblks(3)))
       CALL dbt_get_info(t3c_main, blk_size_1=bsizes1, blk_size_2=bsizes2, blk_size_3=bsizes3)
 
-      ALLOCATE (current_dest(nblks(1), nblks(2), nblks(3)))
+      ALLOCATE (current_dest(nblks(1), nblks(2), nblks(3), 0:ngroups - 1))
+      DO igroup = 0, ngroups - 1
+         !for a given subgroup, need to make the destination available to everyone in the main group
+         current_dest(:, :, :, igroup) = block_dest(:, :, :)
+         CALL para_env%bcast(current_dest(:, :, :, igroup), source=igroup*group_size) !bcast from first proc in subgroup
+      END DO
 
       !Loop over groups, blocks and send/receive
+      ALLOCATE (send_buff(ngroups*nocc), recv_buff(ngroups*nocc))
+      ALLOCATE (send_req(ngroups*nocc), recv_req(ngroups*nocc))
+      ir = 0
+      is = 0
       tag = 0
       DO igroup = 0, ngroups - 1
-
-         ALLOCATE (send_buff(nocc), recv_buff(nocc))
-         ALLOCATE (send_req(nocc), recv_req(nocc))
-         ir = 0
-         is = 0
-
-         !for a given subgroup, need to make the destination available to everyone in the main group
-         current_dest(:, :, :) = block_dest(:, :, :)
-         CALL para_env%bcast(current_dest, source=igroup*group_size) !bcast from first proc in sub-group
-
-         nocc = 0
          DO kblk = 1, nblks(3)
             DO jblk = 1, nblks(2)
                DO iblk = 1, nblks(1)
@@ -1548,7 +1561,6 @@ CONTAINS
 
                   !a unique tag per block
                   tag = tag + 1
-                  nocc = nocc + 1
 
                   IF (filter_at) THEN
                      ind(:) = [iblk, jblk, kblk]
@@ -1562,21 +1574,22 @@ CONTAINS
                   END IF
 
                   !If blocks live on same proc, simply copy. Else MPI send/recv
-                  IF (block_source(iblk, jblk, kblk) == current_dest(iblk, jblk, kblk)) THEN
+                  IF (block_source(iblk, jblk, kblk) == current_dest(iblk, jblk, kblk, igroup)) THEN
                      IF (found) CALL dbt_put_block(t3c_sub, [iblk, jblk, kblk], SHAPE(blk), blk)
                   ELSE
                      IF (para_env%mepos == block_source(iblk, jblk, kblk) .AND. found) THEN
-                        ALLOCATE (send_buff(nocc)%array(bsizes1(iblk), bsizes2(jblk), bsizes3(kblk)))
-                        send_buff(nocc)%array(:, :, :) = blk(:, :, :)
+                        ALLOCATE (send_buff(tag)%array(bsizes1(iblk), bsizes2(jblk), bsizes3(kblk)))
+                        send_buff(tag)%array(:, :, :) = blk(:, :, :)
                         is = is + 1
-                        CALL para_env%isend(msgin=send_buff(nocc)%array, dest=current_dest(iblk, jblk, kblk), &
+                        CALL para_env%isend(msgin=send_buff(tag)%array, &
+                                            dest=current_dest(iblk, jblk, kblk, igroup), &
                                             request=send_req(is), tag=tag)
                      END IF
 
-                     IF (para_env%mepos == current_dest(iblk, jblk, kblk)) THEN
-                        ALLOCATE (recv_buff(nocc)%array(bsizes1(iblk), bsizes2(jblk), bsizes3(kblk)))
+                     IF (para_env%mepos == current_dest(iblk, jblk, kblk, igroup)) THEN
+                        ALLOCATE (recv_buff(tag)%array(bsizes1(iblk), bsizes2(jblk), bsizes3(kblk)))
                         ir = ir + 1
-                        CALL para_env%irecv(msgout=recv_buff(nocc)%array, source=block_source(iblk, jblk, kblk), &
+                        CALL para_env%irecv(msgout=recv_buff(tag)%array, source=block_source(iblk, jblk, kblk), &
                                             request=recv_req(ir), tag=tag)
                      END IF
                   END IF
@@ -1585,41 +1598,46 @@ CONTAINS
                END DO
             END DO
          END DO
+      END DO
 
-         CALL mp_waitall(send_req(1:is))
-         CALL mp_waitall(recv_req(1:ir))
+      CALL mp_waitall(send_req(1:is))
+      CALL mp_waitall(recv_req(1:ir))
+      !clean-up
+      DO i = 1, nocc*ngroups
+         IF (ASSOCIATED(send_buff(i)%array)) DEALLOCATE (send_buff(i)%array)
+      END DO
 
-         !Finally copy the data from the buffer to the sub-tensor
-         nocc = 0
+      !Finally copy the data from the buffer to the sub-tensor
+      tag = 0
+      DO igroup = 0, ngroups - 1
          DO kblk = 1, nblks(3)
             DO jblk = 1, nblks(2)
                DO iblk = 1, nblks(1)
                   IF (block_source(iblk, jblk, kblk) == -1) CYCLE
-                  nocc = nocc + 1
+                  tag = tag + 1
                   IF (filter_at) THEN
                      ind(:) = [iblk, jblk, kblk]
                      iatom = ind(dim_at)
                      IF (.NOT. iatom_to_subgroup(iatom)%array(igroup + 1)) CYCLE
                   END IF
-                  IF (para_env%mepos == current_dest(iblk, jblk, kblk) .AND. &
-                      block_source(iblk, jblk, kblk) .NE. current_dest(iblk, jblk, kblk)) THEN
+                  IF (para_env%mepos == current_dest(iblk, jblk, kblk, igroup) .AND. &
+                      block_source(iblk, jblk, kblk) .NE. current_dest(iblk, jblk, kblk, igroup)) THEN
 
                      ALLOCATE (blk(bsizes1(iblk), bsizes2(jblk), bsizes3(kblk)))
-                     blk(:, :, :) = recv_buff(nocc)%array(:, :, :)
+                     blk(:, :, :) = recv_buff(tag)%array(:, :, :)
                      CALL dbt_put_block(t3c_sub, [iblk, jblk, kblk], SHAPE(blk), blk)
                      DEALLOCATE (blk)
                   END IF
                END DO
             END DO
          END DO
-
-         !clean-up
-         DO i = 1, nocc
-            IF (ASSOCIATED(send_buff(i)%array)) DEALLOCATE (send_buff(i)%array)
-            IF (ASSOCIATED(recv_buff(i)%array)) DEALLOCATE (recv_buff(i)%array)
-         END DO
-         DEALLOCATE (send_buff, recv_buff, send_req, recv_req)
       END DO
+
+      !clean-up
+      DO i = 1, nocc*ngroups
+         IF (ASSOCIATED(recv_buff(i)%array)) DEALLOCATE (recv_buff(i)%array)
+      END DO
+      DEALLOCATE (send_buff, recv_buff, send_req, recv_req)
       CALL dbt_finalize(t3c_sub)
 
    END SUBROUTINE copy_3c_to_subgroup
@@ -2145,27 +2163,28 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ngroups
       TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
 
-      INTEGER                                            :: b_img, cost, cost_tot, i, iatom, igroup, &
-                                                            jatom, lb, natom, nimg
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bins, cost_per_at, max_group_per_at
-      REAL(dp)                                           :: fac
+      INTEGER                                            :: b_img, i, iatom, igroup, jatom, lb, &
+                                                            natom, nimg
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: max_group_per_at
+      REAL(dp)                                           :: cost, cost_tot, fac
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: bins, cost_per_at
 
       natom = SIZE(sparsity_pattern, 2)
       nimg = SIZE(sparsity_pattern, 3)
 
       ALLOCATE (bins(ngroups))
-      bins = 0
+      bins = 0.0_dp
 
       !To avoid unnecessary data replication accross the subgroups, we want to have a limited number
       !of subgroup with the data of a given iatom. At the minimum, all groups have 1 atom
       ALLOCATE (cost_per_at(natom))
-      cost_per_at = 0
-      cost_tot = 0
+      cost_per_at = 0.0_dp
+      cost_tot = 0.0_dp
       DO b_img = 1, nimg
          DO jatom = 1, natom
             DO iatom = 1, natom
                IF (sparsity_pattern(iatom, jatom, b_img) == -1) CYCLE
-               cost = ri_data%bsizes_AO(iatom)*ri_data%bsizes_AO(jatom)
+               cost = REAL(ri_data%bsizes_AO(iatom)*ri_data%bsizes_AO(jatom), dp)
                cost_per_at(iatom) = cost_per_at(iatom) + cost
                cost_tot = cost_tot + cost
             END DO
@@ -2176,7 +2195,7 @@ CONTAINS
       lb = MAX(1, CEILING(REAL(ngroups, dp)/REAL(natom, dp)))
       max_group_per_at = MAX(lb, ngroups/ri_data%n_mem)
       DO iatom = 1, natom
-         fac = REAL(cost_per_at(iatom), dp)/REAL(cost_tot, dp)*REAL(natom, dp)
+         fac = cost_per_at(iatom)/cost_tot*REAL(natom, dp)
          max_group_per_at(iatom) = MIN(ngroups, CEILING(REAL(max_group_per_at(iatom), dp)*fac))
       END DO
 
@@ -2186,18 +2205,24 @@ CONTAINS
          iatom_to_subgroup(iatom)%array(:) = .FALSE.
          DO i = 1, max_group_per_at(iatom)
             igroup = MINLOC(bins, 1) - 1
-            bins(igroup + 1) = bins(igroup + 1) + 1
+            bins(igroup + 1) = bins(igroup + 1) + 1.0_dp
             iatom_to_subgroup(iatom)%array(igroup + 1) = .TRUE.
          END DO
       END DO
 
-      bins = 0
+      bins = 0.0_dp
       DO b_img = 1, nimg
          DO jatom = 1, natom
             DO iatom = 1, natom
                IF (sparsity_pattern(iatom, jatom, b_img) == -1) CYCLE
                igroup = MINLOC(bins, 1, MASK=iatom_to_subgroup(iatom)%array) - 1
-               cost = ri_data%bsizes_AO(iatom)*ri_data%bsizes_AO(jatom)
+
+               !Use cost information from previous SCF if available
+               IF (ri_data%kp_cost(iatom, jatom, b_img) > EPSILON(0.0_dp)) THEN
+                  cost = ri_data%kp_cost(iatom, jatom, b_img)
+               ELSE
+                  cost = REAL(ri_data%bsizes_AO(iatom)*ri_data%bsizes_AO(jatom), dp)
+               END IF
                bins(igroup + 1) = bins(igroup + 1) + cost
                sparsity_pattern(iatom, jatom, b_img) = igroup
             END DO

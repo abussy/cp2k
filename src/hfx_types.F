@@ -398,6 +398,9 @@ MODULE hfx_types
       ! KP RI-HFX basis info
       INTEGER, DIMENSION(:), ALLOCATABLE ::  img_to_RI_cell, present_images
 
+      ! KP RI-HFX cost information for a given atom pair i,j at a given cell b
+      REAL(dp), DIMENSION(:, :, :), ALLOCATABLE :: kp_cost
+
       ! Note: changed static DIMENSION(1,1) of dbt_type to allocatables as workaround for gfortran 8.3.0,
       ! with static dimension gfortran gets stuck during compilation
 
