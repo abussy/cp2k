@@ -1458,14 +1458,17 @@ CONTAINS
 !> \param para_env ...
 !> \param iatom_to_subgroup ...
 !> \param dim_at ...
+!> \param idx_to_at ...
 ! **************************************************************************************************
-   SUBROUTINE copy_3c_to_subgroup(t3c_sub, t3c_main, group_size, ngroups, para_env, iatom_to_subgroup, dim_at)
+   SUBROUTINE copy_3c_to_subgroup(t3c_sub, t3c_main, group_size, ngroups, para_env, iatom_to_subgroup, &
+                                  dim_at, idx_to_at)
       TYPE(dbt_type), INTENT(INOUT)                      :: t3c_sub, t3c_main
       INTEGER, INTENT(IN)                                :: group_size, ngroups
       TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(cp_1d_logical_p_type), DIMENSION(:), &
          INTENT(INOUT), OPTIONAL                         :: iatom_to_subgroup
       INTEGER, INTENT(IN), OPTIONAL                      :: dim_at
+      INTEGER, DIMENSION(:), OPTIONAL                    :: idx_to_at
 
       INTEGER                                            :: i, iatom, iblk, igroup, iproc, ir, is, &
                                                             jblk, kblk, nocc, tag
@@ -1488,9 +1491,9 @@ CONTAINS
 
       !in some cases, only copy a fraction of the 3c tensor to a given subgroup (corresponding to some atoms)
       filter_at = .FALSE.
-      IF (PRESENT(iatom_to_subgroup) .AND. PRESENT(dim_at)) THEN
+      IF (PRESENT(iatom_to_subgroup) .AND. PRESENT(dim_at) .AND. PRESENT(idx_to_at)) THEN
          filter_at = .TRUE.
-         CPASSERT(nblks(dim_at) == SIZE(iatom_to_subgroup))
+         CPASSERT(nblks(dim_at) == SIZE(idx_to_at))
       END IF
 
       !Loop over the main tensor, count how many blocks are there, which ones, and on which proc
@@ -1564,7 +1567,7 @@ CONTAINS
 
                   IF (filter_at) THEN
                      ind(:) = [iblk, jblk, kblk]
-                     iatom = ind(dim_at)
+                     iatom = idx_to_at(ind(dim_at))
                      IF (.NOT. iatom_to_subgroup(iatom)%array(igroup + 1)) CYCLE
                   END IF
 
@@ -1617,7 +1620,7 @@ CONTAINS
                   tag = tag + 1
                   IF (filter_at) THEN
                      ind(:) = [iblk, jblk, kblk]
-                     iatom = ind(dim_at)
+                     iatom = idx_to_at(ind(dim_at))
                      IF (.NOT. iatom_to_subgroup(iatom)%array(igroup + 1)) CYCLE
                   END IF
                   IF (para_env%mepos == current_dest(iblk, jblk, kblk, igroup) .AND. &
@@ -1943,22 +1946,20 @@ CONTAINS
       INTEGER                                            :: handle, handle2, i_img, i_RI, i_spin, &
                                                             natom, nblks, nimg, nspins
       INTEGER(int_8)                                     :: nze
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsizes_RI_ext, bsizes_RI_ext_split, &
-                                                            dist1, dist2, dist3
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsizes_RI_ext_split, dist1, dist2, &
+                                                            dist3, idx_to_at
       INTEGER, DIMENSION(2)                              :: pdims_2d
       INTEGER, DIMENSION(3)                              :: pdims
       REAL(dp)                                           :: occ
       TYPE(dbt_pgrid_type)                               :: pgrid, pgrid_2d
-      TYPE(dbt_type)                                     :: tmp, tmp_sub
+      TYPE(dbt_type)                                     :: tmp
 
       CALL timeset(routineN, handle)
 
       natom = SIZE(ri_data%bsizes_RI)
       nblks = SIZE(ri_data%bsizes_RI_split)
-      ALLOCATE (bsizes_RI_ext(ri_data%ncell_RI*natom))
       ALLOCATE (bsizes_RI_ext_split(ri_data%ncell_RI*nblks))
       DO i_RI = 1, ri_data%ncell_RI
-         bsizes_RI_ext((i_RI - 1)*natom + 1:i_RI*natom) = ri_data%bsizes_RI(:)
          bsizes_RI_ext_split((i_RI - 1)*nblks + 1:i_RI*nblks) = ri_data%bsizes_RI_split(:)
       END DO
 
@@ -1973,22 +1974,16 @@ CONTAINS
       pdims(3) = pdims_2d(2)
       CALL dbt_pgrid_create(para_env_sub, pdims, pgrid)
 
-      !Utility atomic size tensors for less messages sent
-      CALL create_3c_tensor(tmp, dist1, dist2, dist3, &
-                            ri_data%pgrid, bsizes_RI_ext, ri_data%bsizes_AO, &
-                            ri_data%bsizes_AO, [1], [2, 3], name="(RI | AO AO)")
-      DEALLOCATE (dist1, dist2, dist3)
-
-      CALL create_3c_tensor(tmp_sub, dist1, dist2, dist3, &
-                            pgrid, bsizes_RI_ext, ri_data%bsizes_AO, &
-                            ri_data%bsizes_AO, [1], [2, 3], name="(RI | AO AO)")
-      DEALLOCATE (dist1, dist2, dist3)
-
       !Create all required 3c tensors in that configuration
       nimg = SIZE(t_3c_int)
 
       CALL create_3c_tensor(t_3c_int(1), dist1, dist2, dist3, &
                             pgrid, bsizes_RI_ext_split, ri_data%bsizes_AO_split, &
+                            ri_data%bsizes_AO_split, [1], [2, 3], name="(RI | AO AO)")
+      DEALLOCATE (dist1, dist2, dist3)
+
+      CALL create_3c_tensor(tmp, dist1, dist2, dist3, &
+                            ri_data%pgrid, bsizes_RI_ext_split, ri_data%bsizes_AO_split, &
                             ri_data%bsizes_AO_split, [1], [2, 3], name="(RI | AO AO)")
       DEALLOCATE (dist1, dist2, dist3)
 
@@ -2005,14 +2000,11 @@ CONTAINS
          CALL get_tensor_occupancy(ri_data%t_3c_int_ctr_1(1, i_img), nze, occ)
          IF (nze == 0) CYCLE
          CALL dbt_copy(ri_data%t_3c_int_ctr_1(1, i_img), tmp, order=[2, 1, 3])
-         CALL copy_3c_to_subgroup(tmp_sub, tmp, group_size, ngroups, para_env)
-         CALL dbt_copy(tmp_sub, t_3c_int(i_img), move_data=.TRUE.)
-         CALL dbt_filter(t_3c_int(i_img), ri_data%filter_eps)
+         CALL copy_3c_to_subgroup(t_3c_int(i_img), tmp, group_size, ngroups, para_env)
       END DO
       CALL timestop(handle2)
       CALL dbt_pgrid_destroy(pgrid)
       CALL dbt_destroy(tmp)
-      CALL dbt_destroy(tmp_sub)
 
       !Do the same for the t_3c_ctr_2 configuration
       pdims(1) = 1
@@ -2027,36 +2019,22 @@ CONTAINS
       CALL dbt_create(t_3c_work_2(1), t_3c_work_2(2))
       CALL dbt_create(t_3c_work_2(1), t_3c_work_2(3))
 
-      !Utility atomic size tensors for less messages sent
-      CALL create_3c_tensor(tmp, dist1, dist2, dist3, &
-                            ri_data%pgrid, ri_data%bsizes_AO, bsizes_RI_ext, &
-                            ri_data%bsizes_AO, [1], [2, 3], name="(AO | RI AO)")
-      DEALLOCATE (dist1, dist2, dist3)
-
-      CALL create_3c_tensor(tmp_sub, dist1, dist2, dist3, &
-                            pgrid, ri_data%bsizes_AO, bsizes_RI_ext, &
-                            ri_data%bsizes_AO, [1], [2, 3], name="(AO | RI AO)")
-      DEALLOCATE (dist1, dist2, dist3)
-
       !Finally copy data from t_3c_apc to the subgroups
+      ALLOCATE (idx_to_at(SIZE(ri_data%bsizes_AO_split)))
+      CALL get_idx_to_atom(idx_to_at, ri_data%bsizes_AO_split, ri_data%bsizes_AO)
       nspins = SIZE(t_3c_apc, 1)
       CALL timeset(routineN//"_apc", handle2)
       DO i_img = 1, nimg
          DO i_spin = 1, nspins
-            !TODO: necessary to switch to atomic block sizes? Could it be faster otherwise?
             CALL dbt_create(t_3c_work_2(1), t_3c_apc_sub(i_spin, i_img))
             CALL get_tensor_occupancy(t_3c_apc(i_spin, i_img), nze, occ)
             IF (nze == 0) CYCLE
-            CALL dbt_copy(t_3c_apc(i_spin, i_img), tmp, move_data=.TRUE.)
-            CALL copy_3c_to_subgroup(tmp_sub, tmp, group_size, ngroups, para_env, iatom_to_subgroup, 1)
-            CALL dbt_copy(tmp_sub, t_3c_apc_sub(i_spin, i_img), move_data=.TRUE.)
-            CALL dbt_filter(t_3c_apc_sub(i_spin, i_img), ri_data%filter_eps)
+            CALL copy_3c_to_subgroup(t_3c_apc_sub(i_spin, i_img), t_3c_apc(i_spin, i_img), group_size, &
+                                     ngroups, para_env, iatom_to_subgroup, 1, idx_to_at)
          END DO
       END DO
       CALL timestop(handle2)
       CALL dbt_pgrid_destroy(pgrid)
-      CALL dbt_destroy(tmp)
-      CALL dbt_destroy(tmp_sub)
 
       CALL timestop(handle)
 
@@ -2184,7 +2162,12 @@ CONTAINS
          DO jatom = 1, natom
             DO iatom = 1, natom
                IF (sparsity_pattern(iatom, jatom, b_img) == -1) CYCLE
-               cost = REAL(ri_data%bsizes_AO(iatom)*ri_data%bsizes_AO(jatom), dp)
+               !Use cost information from previous SCF if available
+               IF (ri_data%kp_cost(iatom, jatom, b_img) > EPSILON(0.0_dp)) THEN
+                  cost = ri_data%kp_cost(iatom, jatom, b_img)
+               ELSE
+                  cost = REAL(ri_data%bsizes_AO(iatom)*ri_data%bsizes_AO(jatom), dp)
+               END IF
                cost_per_at(iatom) = cost_per_at(iatom) + cost
                cost_tot = cost_tot + cost
             END DO
