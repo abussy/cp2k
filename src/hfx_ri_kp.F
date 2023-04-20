@@ -265,6 +265,11 @@ CONTAINS
       ALLOCATE (t_3c_int(ncell_RI, nimg))
       CALL hfx_ri_pre_scf_calc_tensors(qs_env, ri_data, t_2c_op_RI, t_2c_op_pot, t_3c_int, do_kpoints=.TRUE.)
 
+      !TODO: for all 3-center tensors, we should probably combine all images into a single TAS tensor
+      !      this would help with the upper limit on the number of tensors possible on HPC machines
+      !      For the 2-center tensors, this is not very convienient... This means: t_3c_int, t_3c_int_ctr_1,
+      !      a fundamental change in hfx_ri.F and qs_tensors.F, t_3c_apc, and some batching on copy_3c_to_sub
+
       !Make sure the internals have the k-point format
       CALL adapt_ri_data_to_kp(t_3c_tmp, ri_data, qs_env)
 
@@ -293,6 +298,9 @@ CONTAINS
          END DO
       END DO
       CALL dbt_destroy(t_3c_tmp)
+
+      !reorder the 3c integrals such that empty images are bunched up together
+      CALL reorder_3c_ints(ri_data%t_3c_int_ctr_1(1, :), ri_data)
 
       !For each atom i, we calculate the inverse RI metric (P^0 | Q^0)^-1 according to the MIC
       DO iatom = 1, natom
@@ -338,13 +346,12 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ri_update_ks_kp'
 
-      INTEGER                                            :: apc_img, b_img, group_size, handle, &
-                                                            handle2, i_img, i_spin, iatom, iblk, &
-                                                            igroup, jatom, mb_img, natom, ngroups, &
-                                                            nimg
+      INTEGER :: apc_img, b_img, batch_size, group_size, handle, handle2, i_batch, i_img, i_spin, &
+         iatom, iblk, igroup, jatom, mb_img, n_batch, natom, ngroups, nimg
       INTEGER(int_8)                                     :: nflop, nze
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: batch_ranges, dist1, dist2, idx_to_at_AO
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: ac_pairs
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: batch_ranges_at, batch_ranges_img, &
+                                                            dist1, dist2, idx_to_at_AO
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: ac_pairs, iapc_pairs
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: sparsity_pattern
       REAL(dp)                                           :: etmp, fac, occ, pref, t1, t2, t3, t4
       TYPE(cp_1d_logical_p_type), ALLOCATABLE, &
@@ -421,11 +428,6 @@ CONTAINS
       !combination of a,c indices. Then we build TAS tensors P_mu^0,lambda^c with all concerned c's
       !and (mu^0 sigma^a | P) with all a's. Then we perform a single contraction with larger tensors,
       !were the sum over a,c is automatically taken care of
-
-      !Create the stack tensors in the approriate distribution
-      ALLOCATE (rho_stack(2), ints_stack(2))
-      CALL get_stack_tensors(rho_stack, ints_stack, rho_ao_t(1, 1), ri_data%t_3c_int_ctr_1(1, 1), ri_data, qs_env)
-
       ALLOCATE (t_3c_apc(nspins, nimg))
       DO i_img = 1, nimg
          DO i_spin = 1, nspins
@@ -436,32 +438,53 @@ CONTAINS
       t1 = m_walltime()
       CALL timeset(routineN//"_3c_1", handle2)
 
-      !Loop over a+c images
-      !TODO: n_mem batching? probably unnecessary
-      ALLOCATE (ac_pairs(2, nimg))
-      DO apc_img = 1, nimg
-         IF (ri_data%present_images(apc_img) == 0) CYCLE
-         CALL get_ac_pairs(ac_pairs, apc_img, qs_env)
-         CALL fill_ints_stack(ints_stack(1), ri_data%t_3c_int_ctr_1(1, :), ac_pairs, ri_data)
-         CALL dbt_copy(ints_stack(1), ints_stack(2), move_data=.TRUE.)
-
-         DO i_spin = 1, nspins
-            CALL fill_rho_stack(rho_stack(1), rho_ao_t(i_spin, :), ac_pairs, ri_data)
-            CALL dbt_copy(rho_stack(1), rho_stack(2), move_data=.TRUE.)
-
-            CALL dbt_batched_contract_init(t_3c_tmp)
-            CALL dbt_contract(1.0_dp, ints_stack(2), rho_stack(2), &
-                              0.0_dp, t_3c_tmp, map_1=[1, 2], map_2=[3], &
-                              contract_1=[3], notcontract_1=[1, 2], &
-                              contract_2=[1], notcontract_2=[2], &
-                              filter_eps=ri_data%filter_eps, flop=nflop, &
-                              move_data=.TRUE.)
-            ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
-            CALL dbt_batched_contract_finalize(t_3c_tmp)
-
-            CALL dbt_copy(t_3c_tmp, t_3c_apc(i_spin, apc_img), move_data=.TRUE.)
-         END DO
+      batch_size = nimg/ri_data%n_mem
+      n_batch = nimg/batch_size
+      IF (MODULO(nimg, batch_size) .NE. 0) n_batch = n_batch + 1
+      ALLOCATE (batch_ranges_img(n_batch + 1))
+      DO i_batch = 1, n_batch
+         batch_ranges_img(i_batch) = (i_batch - 1)*batch_size + 1
       END DO
+      batch_ranges_img(n_batch + 1) = nimg + 1
+
+      !Create the stack tensors in the approriate distribution
+      ALLOCATE (rho_stack(2), ints_stack(2))
+      CALL get_stack_tensors(rho_stack, ints_stack, rho_ao_t(1, 1), ri_data%t_3c_int_ctr_1(1, 1), &
+                             batch_size, ri_data, qs_env)
+
+      !Loop over a+c images
+      ALLOCATE (ac_pairs(nimg, 2))
+      DO apc_img = 1, nimg
+         CALL get_ac_pairs(ac_pairs, apc_img, ri_data, qs_env)
+         DO i_batch = 1, n_batch
+            CALL fill_3c_stack(ints_stack(1), ri_data%t_3c_int_ctr_1(1, :), ac_pairs(:, 1), 3, ri_data, &
+                               img_bounds=[batch_ranges_img(i_batch), batch_ranges_img(i_batch + 1)])
+            CALL get_tensor_occupancy(ints_stack(1), nze, occ)
+            IF (nze == 0) CYCLE
+            CALL dbt_copy(ints_stack(1), ints_stack(2), move_data=.TRUE.)
+
+            DO i_spin = 1, nspins
+               CALL fill_2c_stack(rho_stack(1), rho_ao_t(i_spin, :), ac_pairs(:, 2), 1, ri_data, &
+                                  img_bounds=[batch_ranges_img(i_batch), batch_ranges_img(i_batch + 1)])
+               CALL get_tensor_occupancy(rho_stack(1), nze, occ)
+               IF (nze == 0) CYCLE
+               CALL dbt_copy(rho_stack(1), rho_stack(2), move_data=.TRUE.)
+
+               CALL dbt_batched_contract_init(t_3c_tmp)
+               CALL dbt_contract(1.0_dp, ints_stack(2), rho_stack(2), &
+                                 0.0_dp, t_3c_tmp, map_1=[1, 2], map_2=[3], &
+                                 contract_1=[3], notcontract_1=[1, 2], &
+                                 contract_2=[1], notcontract_2=[2], &
+                                 filter_eps=ri_data%filter_eps, flop=nflop, &
+                                 move_data=.TRUE.)
+               ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
+               CALL dbt_batched_contract_finalize(t_3c_tmp)
+
+               CALL dbt_copy(t_3c_tmp, t_3c_apc(i_spin, apc_img), summation=.TRUE., move_data=.TRUE.)
+            END DO
+         END DO !i_batch
+      END DO
+      DEALLOCATE (batch_ranges_img)
 
       CALL dbt_destroy(rho_stack(1))
       CALL dbt_destroy(rho_stack(2))
@@ -491,6 +514,9 @@ CONTAINS
       ALLOCATE (iatom_to_subgroup(natom))
       CALL get_sub_dist(iatom_to_subgroup, sparsity_pattern, ngroups, ri_data)
 
+      batch_size = 16 !hard coded TODO: change that, link it to n_mem. On Daint, larger number are faster
+      ri_data%batch_size = batch_size
+
       !Get all the required tensors in the subgroups
       ALLOCATE (t_2c_inv(natom), mat_2c_pot(nimg), ks_t_sub(nspins, nimg), t_2c_ao_tmp(1), &
                 ks_t_split(2), t_2c_work(3))
@@ -501,19 +527,32 @@ CONTAINS
       CALL get_subgroup_3c_tensors(t_3c_int, t_3c_work_2, t_3c_work_3, t_3c_apc, t_3c_apc_sub, &
                                    iatom_to_subgroup, group_size, ngroups, para_env, para_env_sub, ri_data)
 
-      ALLOCATE (batch_ranges(natom + 1))
-      batch_ranges(natom + 1) = SIZE(ri_data%bsizes_AO_split) + 1
+      !We go atom by atom, therefore there is an automatic batching along that direction
+      !Also, because we stack the 3c tensors nimg times, we naturally do some batching there too
+      ALLOCATE (batch_ranges_at(natom + 1))
+      batch_ranges_at(natom + 1) = SIZE(ri_data%bsizes_AO_split) + 1
       iatom = 0
       DO iblk = 1, SIZE(ri_data%bsizes_AO_split)
          IF (idx_to_at_AO(iblk) == iatom + 1) THEN
             iatom = iatom + 1
-            batch_ranges(iatom) = iblk
+            batch_ranges_at(iatom) = iblk
          END IF
       END DO
-      CALL dbt_batched_contract_init(t_3c_work_3(1), batch_range_2=batch_ranges)
-      CALL dbt_batched_contract_init(t_3c_work_3(2), batch_range_2=batch_ranges)
-      CALL dbt_batched_contract_init(t_3c_work_2(1), batch_range_1=batch_ranges)
-      CALL dbt_batched_contract_init(t_3c_work_2(2), batch_range_1=batch_ranges)
+
+      n_batch = nimg/batch_size
+      IF (MODULO(nimg, batch_size) .NE. 0) n_batch = n_batch + 1
+      ALLOCATE (batch_ranges_img(n_batch + 1))
+      DO i_batch = 1, n_batch
+         batch_ranges_img(i_batch) = (i_batch - 1)*batch_size + 1
+      END DO
+      batch_ranges_img(n_batch + 1) = nimg + 1
+
+      CALL dbt_batched_contract_init(t_3c_work_3(1), batch_range_2=batch_ranges_at)
+      CALL dbt_batched_contract_init(t_3c_work_3(2), batch_range_2=batch_ranges_at)
+      CALL dbt_batched_contract_init(t_3c_work_2(1), batch_range_1=batch_ranges_at)
+      CALL dbt_batched_contract_init(t_3c_work_2(2), batch_range_1=batch_ranges_at)
+
+      ALLOCATE (iapc_pairs(nimg, 2))
       DO b_img = 1, nimg
          CALL dbt_batched_contract_init(ks_t_split(1))
          CALL dbt_batched_contract_init(ks_t_split(2))
@@ -547,14 +586,14 @@ CONTAINS
                CALL timestop(handle2)
 
                CALL dbt_batched_contract_init(t_2c_work(3))
-               !Loop over a+c images
+               CALL get_iapc_pairs(iapc_pairs, b_img, ri_data, qs_env)
                CALL timeset(routineN//"_3c_2", handle2)
-               DO i_img = 1, nimg
-                  apc_img = get_apc_index_from_ib(i_img, b_img, qs_env)
-                  IF (apc_img < 1 .OR. apc_img > nimg) CYCLE
 
-                  !Contract the integrals with the 2c quantity: V_PQ * (Q^b| nu^b lambda^a+c)
-                  CALL get_atom_3c_ints(t_3c_work_3(3), t_3c_int(i_img), jatom, 2, idx_to_at_AO)
+               !Stack the (Q^b| nu^b lambda^a+c) integrals over a+c and multiply by V_PQ
+               DO i_batch = 1, n_batch
+                  CALL fill_3c_stack(t_3c_work_3(3), t_3c_int, iapc_pairs(:, 1), 3, ri_data, &
+                                     filter_at=jatom, filter_dim=2, idx_to_at=idx_to_at_AO, &
+                                     img_bounds=[batch_ranges_img(i_batch), batch_ranges_img(i_batch + 1)])
                   CALL get_tensor_occupancy(t_3c_work_3(3), nze, occ)
                   IF (nze == 0) CYCLE
                   CALL dbt_copy(t_3c_work_3(3), t_3c_work_3(1), move_data=.TRUE.)
@@ -567,9 +606,14 @@ CONTAINS
                   CALL dbt_copy(t_3c_work_3(2), t_3c_work_2(2), order=[2, 1, 3], move_data=.TRUE.)
                   CALL dbt_copy(t_3c_work_3(3), t_3c_work_3(1))
 
-                  !Finally get the iatom, jatom block of the Fock matrix
+                  !TODO: is the peak memory reported by CP2K accurate? Should we call m_memroy here?
+
+                  !Stack the P_sigma^a,lambda^a+c * (mu^0 sigma^a | P) integrals over a+c and contract
+                  !to get the final block of the KS matrix
                   DO i_spin = 1, nspins
-                     CALL get_atom_3c_ints(t_3c_work_2(3), t_3c_apc_sub(i_spin, apc_img), iatom, 1, idx_to_at_AO)
+                     CALL fill_3c_stack(t_3c_work_2(3), t_3c_apc_sub(i_spin, :), iapc_pairs(:, 2), 3, &
+                                        ri_data, filter_at=iatom, filter_dim=1, idx_to_at=idx_to_at_AO, &
+                                        img_bounds=[batch_ranges_img(i_batch), batch_ranges_img(i_batch + 1)])
                      CALL get_tensor_occupancy(t_3c_work_2(3), nze, occ)
                      IF (nze == 0) CYCLE
                      CALL dbt_copy(t_3c_work_2(3), t_3c_work_2(1), move_data=.TRUE.)
@@ -581,8 +625,7 @@ CONTAINS
                                        move_data=i_spin == nspins, flop=nflop)
                      ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
                   END DO
-
-               END DO !i_img
+               END DO !i_batch
                CALL timestop(handle2)
                CALL dbt_batched_contract_finalize(t_2c_work(3))
 
@@ -760,33 +803,72 @@ CONTAINS
    END FUNCTION get_apc_index
 
 ! **************************************************************************************************
-!> \brief A routine that returns all allowed a,c pairs such that a+c images corresponds to input
+!> \brief A routine that returns all allowed a,c pairs such that a+c images corresponds to the value
+!>        of the apc_index input. Takes into account that image a corresponds to 3c integrals, which
+!>        are ordered in their own way
 !> \param ac_pairs ...
 !> \param apc_index ...
+!> \param ri_data ...
 !> \param qs_env ...
 ! **************************************************************************************************
-   SUBROUTINE get_ac_pairs(ac_pairs, apc_index, qs_env)
+   SUBROUTINE get_ac_pairs(ac_pairs, apc_index, ri_data, qs_env)
       INTEGER, DIMENSION(:, :), INTENT(INOUT)            :: ac_pairs
       INTEGER, INTENT(IN)                                :: apc_index
+      TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      INTEGER                                            :: a_index, c_index, i_pair, nimg
+      INTEGER                                            :: a_index, actual_img, c_index, i_pair, &
+                                                            nimg
 
-      nimg = SIZE(ac_pairs, 2)
+      nimg = SIZE(ac_pairs, 1)
 
       ac_pairs(:, :) = 0
       i_pair = 0
       DO a_index = 1, nimg
+         actual_img = ri_data%idx_to_img(a_index)
          DO c_index = 1, nimg
-            IF (get_apc_index(a_index, c_index, qs_env) == apc_index) THEN
+            IF (get_apc_index(actual_img, c_index, qs_env) == apc_index) THEN
                i_pair = i_pair + 1
-               ac_pairs(1, i_pair) = a_index
-               ac_pairs(2, i_pair) = c_index
+               ac_pairs(i_pair, 1) = a_index
+               ac_pairs(i_pair, 2) = c_index
             END IF
          END DO
       END DO
 
    END SUBROUTINE get_ac_pairs
+
+! **************************************************************************************************
+!> \brief A routine that returns all allowed i,a+c pairs such that, for the given value of b, we have
+!>        i = a+c-b. Takes into account that image i corrsponds to the 3c ints, which are ordered in
+!>        their own way
+!> \param iapc_pairs ...
+!> \param b_index ...
+!> \param ri_data ...
+!> \param qs_env ...
+! **************************************************************************************************
+   SUBROUTINE get_iapc_pairs(iapc_pairs, b_index, ri_data, qs_env)
+      INTEGER, DIMENSION(:, :), INTENT(INOUT)            :: iapc_pairs
+      INTEGER, INTENT(IN)                                :: b_index
+      TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+
+      INTEGER                                            :: actual_img, apc_index, i_index, i_pair, &
+                                                            nimg
+
+      nimg = SIZE(iapc_pairs, 1)
+
+      iapc_pairs(:, :) = 0
+      i_pair = 0
+      DO i_index = 1, nimg
+         i_pair = i_pair + 1
+         actual_img = ri_data%idx_to_img(i_index)
+         apc_index = get_apc_index_from_ib(actual_img, b_index, qs_env)
+         IF (apc_index == 0) CYCLE
+         iapc_pairs(i_pair, 1) = i_index
+         iapc_pairs(i_pair, 2) = apc_index
+      END DO
+
+   END SUBROUTINE get_iapc_pairs
 
 ! **************************************************************************************************
 !> \brief A function that, given a cell index a, returun the index corresponding to -a, and zero if
@@ -1249,42 +1331,6 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE get_ext_2c_int
-
-! **************************************************************************************************
-!> \brief copies the 3c integrals correspoinding to a single atom mu from the general (P^0| mu^0 sigam^a)
-!> \param t_3c_at ...
-!> \param t_3c_ints ...
-!> \param iatom ...
-!> \param dim_at ...
-!> \param idx_to_at ...
-! **************************************************************************************************
-   SUBROUTINE get_atom_3c_ints(t_3c_at, t_3c_ints, iatom, dim_at, idx_to_at)
-      TYPE(dbt_type), INTENT(INOUT)                      :: t_3c_at, t_3c_ints
-      INTEGER, INTENT(IN)                                :: iatom, dim_at
-      INTEGER, DIMENSION(:), INTENT(IN)                  :: idx_to_at
-
-      INTEGER, DIMENSION(3)                              :: ind
-      LOGICAL                                            :: found
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: blk
-      TYPE(dbt_iterator_type)                            :: iter
-
-!$OMP PARALLEL DEFAULT(NONE) SHARED(t_3c_ints,t_3c_at,iatom,idx_to_at,dim_at) PRIVATE(iter,ind,blk,found)
-      CALL dbt_iterator_start(iter, t_3c_ints)
-      DO WHILE (dbt_iterator_blocks_left(iter))
-         CALL dbt_iterator_next_block(iter, ind)
-         IF (.NOT. idx_to_at(ind(dim_at)) == iatom) CYCLE
-
-         CALL dbt_get_block(t_3c_ints, ind, blk, found)
-         IF (.NOT. found) CYCLE
-
-         CALL dbt_put_block(t_3c_at, ind, SHAPE(blk), blk)
-         DEALLOCATE (blk)
-      END DO
-      CALL dbt_iterator_stop(iter)
-!$OMP END PARALLEL
-      CALL dbt_finalize(t_3c_at)
-
-   END SUBROUTINE get_atom_3c_ints
 
 ! **************************************************************************************************
 !> \brief Copy the data of a 2D tensor living in the main MPI group to a sub-group, given the proc
@@ -1943,24 +1989,33 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'get_subgroup_3c_tensors'
 
-      INTEGER                                            :: handle, handle2, i_img, i_RI, i_spin, &
-                                                            natom, nblks, nimg, nspins
+      INTEGER                                            :: batch_size, handle, handle2, i_img, &
+                                                            i_RI, i_spin, ib, nblks_AO, nblks_RI, &
+                                                            nimg, nspins
       INTEGER(int_8)                                     :: nze
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsizes_RI_ext_split, dist1, dist2, &
-                                                            dist3, idx_to_at
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsizes_RI_ext_split, bsizes_stack, &
+                                                            dist1, dist2, dist3, dist_stack, &
+                                                            idx_to_at
       INTEGER, DIMENSION(2)                              :: pdims_2d
       INTEGER, DIMENSION(3)                              :: pdims
       REAL(dp)                                           :: occ
+      TYPE(dbt_distribution_type)                        :: t_dist
       TYPE(dbt_pgrid_type)                               :: pgrid, pgrid_2d
       TYPE(dbt_type)                                     :: tmp
 
       CALL timeset(routineN, handle)
 
-      natom = SIZE(ri_data%bsizes_RI)
-      nblks = SIZE(ri_data%bsizes_RI_split)
-      ALLOCATE (bsizes_RI_ext_split(ri_data%ncell_RI*nblks))
+      nblks_RI = SIZE(ri_data%bsizes_RI_split)
+      ALLOCATE (bsizes_RI_ext_split(ri_data%ncell_RI*nblks_RI))
       DO i_RI = 1, ri_data%ncell_RI
-         bsizes_RI_ext_split((i_RI - 1)*nblks + 1:i_RI*nblks) = ri_data%bsizes_RI_split(:)
+         bsizes_RI_ext_split((i_RI - 1)*nblks_RI + 1:i_RI*nblks_RI) = ri_data%bsizes_RI_split(:)
+      END DO
+
+      batch_size = ri_data%batch_size
+      nblks_AO = SIZE(ri_data%bsizes_AO_split)
+      ALLOCATE (bsizes_stack(batch_size*nblks_AO))
+      DO ib = 1, batch_size
+         bsizes_stack((ib - 1)*nblks_AO + 1:ib*nblks_AO) = ri_data%bsizes_AO_split(:)
       END DO
 
       !Create the pgrid for the configuration correspoinding to ri_data%t_3c_int_ctr_3
@@ -1975,30 +2030,39 @@ CONTAINS
       CALL dbt_pgrid_create(para_env_sub, pdims, pgrid)
 
       !Create all required 3c tensors in that configuration
-      nimg = SIZE(t_3c_int)
-
       CALL create_3c_tensor(t_3c_int(1), dist1, dist2, dist3, &
                             pgrid, bsizes_RI_ext_split, ri_data%bsizes_AO_split, &
                             ri_data%bsizes_AO_split, [1], [2, 3], name="(RI | AO AO)")
-      DEALLOCATE (dist1, dist2, dist3)
+      nimg = SIZE(t_3c_int)
+      DO i_img = 2, nimg
+         CALL dbt_create(t_3c_int(1), t_3c_int(i_img))
+      END DO
+
+      !The stacked work tensors, in a distribution that matches that of t_3c_int
+      ALLOCATE (dist_stack(batch_size*nblks_AO))
+      DO ib = 1, batch_size
+         dist_stack((ib - 1)*nblks_AO + 1:ib*nblks_AO) = dist3(:)
+      END DO
+
+      CALL dbt_distribution_new(t_dist, pgrid, dist1, dist2, dist_stack)
+      CALL dbt_create(t_3c_work_3(1), "work_3_stack", t_dist, [1], [2, 3], &
+                      bsizes_RI_ext_split, ri_data%bsizes_AO_split, bsizes_stack)
+      CALL dbt_create(t_3c_work_3(1), t_3c_work_3(2))
+      CALL dbt_create(t_3c_work_3(1), t_3c_work_3(3))
+      CALL dbt_distribution_destroy(t_dist)
+      DEALLOCATE (dist1, dist2, dist3, dist_stack)
 
       CALL create_3c_tensor(tmp, dist1, dist2, dist3, &
                             ri_data%pgrid, bsizes_RI_ext_split, ri_data%bsizes_AO_split, &
                             ri_data%bsizes_AO_split, [1], [2, 3], name="(RI | AO AO)")
       DEALLOCATE (dist1, dist2, dist3)
 
-      DO i_img = 2, nimg
-         CALL dbt_create(t_3c_int(1), t_3c_int(i_img))
-      END DO
-      CALL dbt_create(t_3c_int(1), t_3c_work_3(1))
-      CALL dbt_create(t_3c_int(1), t_3c_work_3(2))
-      CALL dbt_create(t_3c_int(1), t_3c_work_3(3))
-
       !Finally copy the integrals into the subgroups
       CALL timeset(routineN//"_ints", handle2)
       DO i_img = 1, nimg
          CALL get_tensor_occupancy(ri_data%t_3c_int_ctr_1(1, i_img), nze, occ)
          IF (nze == 0) CYCLE
+         !TODO: might need to bring back the atomic block format for comm (Eiger fails here)
          CALL dbt_copy(ri_data%t_3c_int_ctr_1(1, i_img), tmp, order=[2, 1, 3])
          CALL copy_3c_to_subgroup(t_3c_int(i_img), tmp, group_size, ngroups, para_env)
       END DO
@@ -2012,12 +2076,24 @@ CONTAINS
       pdims(3) = pdims_2d(2)
       CALL dbt_pgrid_create(para_env_sub, pdims, pgrid)
 
-      CALL create_3c_tensor(t_3c_work_2(1), dist1, dist2, dist3, &
+      !template for t_3c_apc_sub
+      CALL create_3c_tensor(tmp, dist1, dist2, dist3, &
                             pgrid, ri_data%bsizes_AO_split, bsizes_RI_ext_split, &
                             ri_data%bsizes_AO_split, [1], [2, 3], name="(AO RI | AO)")
-      DEALLOCATE (dist1, dist2, dist3)
+
+      !create t_3c_work_2 tensors in a distribution that matches the above
+      ALLOCATE (dist_stack(batch_size*nblks_AO))
+      DO ib = 1, batch_size
+         dist_stack((ib - 1)*nblks_AO + 1:ib*nblks_AO) = dist3(:)
+      END DO
+
+      CALL dbt_distribution_new(t_dist, pgrid, dist1, dist2, dist_stack)
+      CALL dbt_create(t_3c_work_2(1), "work_2_stack", t_dist, [1], [2, 3], &
+                      ri_data%bsizes_AO_split, bsizes_RI_ext_split, bsizes_stack)
       CALL dbt_create(t_3c_work_2(1), t_3c_work_2(2))
       CALL dbt_create(t_3c_work_2(1), t_3c_work_2(3))
+      CALL dbt_distribution_destroy(t_dist)
+      DEALLOCATE (dist1, dist2, dist3, dist_stack)
 
       !Finally copy data from t_3c_apc to the subgroups
       ALLOCATE (idx_to_at(SIZE(ri_data%bsizes_AO_split)))
@@ -2026,7 +2102,7 @@ CONTAINS
       CALL timeset(routineN//"_apc", handle2)
       DO i_img = 1, nimg
          DO i_spin = 1, nspins
-            CALL dbt_create(t_3c_work_2(1), t_3c_apc_sub(i_spin, i_img))
+            CALL dbt_create(tmp, t_3c_apc_sub(i_spin, i_img))
             CALL get_tensor_occupancy(t_3c_apc(i_spin, i_img), nze, occ)
             IF (nze == 0) CYCLE
             CALL copy_3c_to_subgroup(t_3c_apc_sub(i_spin, i_img), t_3c_apc(i_spin, i_img), group_size, &
@@ -2035,10 +2111,55 @@ CONTAINS
       END DO
       CALL timestop(handle2)
       CALL dbt_pgrid_destroy(pgrid)
+      CALL dbt_destroy(tmp)
 
       CALL timestop(handle)
 
    END SUBROUTINE get_subgroup_3c_tensors
+
+! **************************************************************************************************
+!> \brief A routine that reorders the t_3c_int tensors such that all items which are fully empty
+!>        are bunched together. This way, we can get much more efficient screening based on NZE
+!> \param t_3c_ints ...
+!> \param ri_data ...
+! **************************************************************************************************
+   SUBROUTINE reorder_3c_ints(t_3c_ints, ri_data)
+      TYPE(dbt_type), DIMENSION(:), INTENT(INOUT)        :: t_3c_ints
+      TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+
+      INTEGER                                            :: i_img, idx_empty, idx_full, nimg
+      INTEGER(int_8)                                     :: nze
+      REAL(dp)                                           :: occ
+      TYPE(dbt_type), ALLOCATABLE, DIMENSION(:)          :: t_3c_tmp
+
+      nimg = ri_data%nimg
+      ALLOCATE (t_3c_tmp(nimg))
+      DO i_img = 1, nimg
+         CALL dbt_create(t_3c_ints(i_img), t_3c_tmp(i_img))
+         CALL dbt_copy(t_3c_ints(i_img), t_3c_tmp(i_img), move_data=.TRUE.)
+      END DO
+
+      !Loop over the images, check if ints have NZE == 0, and put them at the start or end of the
+      !initial tensor array. Keep the mapping in an array
+      ALLOCATE (ri_data%idx_to_img(nimg))
+      idx_full = 0
+      idx_empty = nimg + 1
+
+      DO i_img = 1, nimg
+         CALL get_tensor_occupancy(t_3c_tmp(i_img), nze, occ)
+         IF (nze == 0) THEN
+            idx_empty = idx_empty - 1
+            CALL dbt_copy(t_3c_tmp(i_img), t_3c_ints(idx_empty), move_data=.TRUE.)
+            ri_data%idx_to_img(idx_empty) = i_img
+         ELSE
+            idx_full = idx_full + 1
+            CALL dbt_copy(t_3c_tmp(i_img), t_3c_ints(idx_full), move_data=.TRUE.)
+            ri_data%idx_to_img(idx_full) = i_img
+         END IF
+         CALL dbt_destroy(t_3c_tmp(i_img))
+      END DO
+
+   END SUBROUTINE reorder_3c_ints
 
 ! **************************************************************************************************
 !> \brief Get the sparsity pattern related to the non-symmetric AO basis overlap neighbor list
@@ -2405,22 +2526,24 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief A routine that creates tensors structure for rho_ao and 3c_ints in a stacked format for
-!>        the efficient contractions of rho_sigma^0,lambda^c * (mu^0 sigam^a | P)
+!>        the efficient contractions of rho_sigma^0,lambda^c * (mu^0 sigam^a | P) => TAS tensors
 !> \param rho_stack ...
 !> \param ints_stack ...
 !> \param rho_template ...
 !> \param ints_template ...
+!> \param stack_size ...
 !> \param ri_data ...
 !> \param qs_env ...
 ! **************************************************************************************************
-   SUBROUTINE get_stack_tensors(rho_stack, ints_stack, rho_template, ints_template, ri_data, qs_env)
+   SUBROUTINE get_stack_tensors(rho_stack, ints_stack, rho_template, ints_template, stack_size, ri_data, qs_env)
       TYPE(dbt_type), DIMENSION(:), INTENT(INOUT)        :: rho_stack, ints_stack
       TYPE(dbt_type), INTENT(INOUT)                      :: rho_template, ints_template
+      INTEGER, INTENT(IN)                                :: stack_size
       TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      INTEGER                                            :: i_img, nblks, nblks_3c(3), nimg, &
-                                                            pdims_2d(2), pdims_3d(3)
+      INTEGER                                            :: is, nblks, nblks_3c(3), pdims_2d(2), &
+                                                            pdims_3d(3)
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsizes_RI_ext, bsizes_stack, dist1, &
                                                             dist2, dist3, dist_stack
       TYPE(dbt_distribution_type)                        :: t_dist
@@ -2431,17 +2554,16 @@ CONTAINS
 
       CALL get_qs_env(qs_env, para_env=para_env)
 
-      nimg = ri_data%nimg
       nblks = SIZE(ri_data%bsizes_AO_split)
-      ALLOCATE (bsizes_stack(nimg*nblks))
-      DO i_img = 1, nimg
-         bsizes_stack((i_img - 1)*nblks + 1:i_img*nblks) = ri_data%bsizes_AO_split(:)
+      ALLOCATE (bsizes_stack(stack_size*nblks))
+      DO is = 1, stack_size
+         bsizes_stack((is - 1)*nblks + 1:is*nblks) = ri_data%bsizes_AO_split(:)
       END DO
 
-      ALLOCATE (dist1(nblks), dist2(nblks), dist_stack(nimg*nblks))
+      ALLOCATE (dist1(nblks), dist2(nblks), dist_stack(stack_size*nblks))
       CALL dbt_get_info(rho_template, proc_dist_1=dist1, proc_dist_2=dist2)
-      DO i_img = 1, nimg
-         dist_stack((i_img - 1)*nblks + 1:i_img*nblks) = dist1(:)
+      DO is = 1, stack_size
+         dist_stack((is - 1)*nblks + 1:is*nblks) = dist1(:)
       END DO
 
       !First 2c tensor matches the distribution of template
@@ -2452,7 +2574,7 @@ CONTAINS
 
       !Second 2c tensor has optimal pgrid
       pdims_2d = 0
-      CALL dbt_pgrid_create(para_env, pdims_2d, pgrid, tensor_dims=[nimg*nblks, nblks])
+      CALL dbt_pgrid_create(para_env, pdims_2d, pgrid, tensor_dims=[stack_size*nblks, nblks])
       CALL create_2c_tensor(rho_stack(2), dist1, dist2, pgrid, bsizes_stack, &
                             ri_data%bsizes_AO_split, name="RHO_stack")
       DEALLOCATE (dist1, dist2)
@@ -2460,11 +2582,11 @@ CONTAINS
 
       CALL dbt_get_info(ints_template, nblks_total=nblks_3c)
       ALLOCATE (dist1(nblks_3c(1)), dist2(nblks_3c(2)), dist3(nblks_3c(3)))
-      ALLOCATE (dist_stack(nimg*nblks_3c(3)), bsizes_RI_ext(nblks_3c(2)))
+      ALLOCATE (dist_stack(stack_size*nblks_3c(3)), bsizes_RI_ext(nblks_3c(2)))
       CALL dbt_get_info(ints_template, proc_dist_1=dist1, proc_dist_2=dist2, &
                         proc_dist_3=dist3, blk_size_2=bsizes_RI_ext)
-      DO i_img = 1, nimg
-         dist_stack((i_img - 1)*nblks_3c(3) + 1:i_img*nblks_3c(3)) = dist3(:)
+      DO is = 1, stack_size
+         dist_stack((is - 1)*nblks_3c(3) + 1:is*nblks_3c(3)) = dist3(:)
       END DO
 
       !First 3c tensor matches the distribution of template
@@ -2476,7 +2598,7 @@ CONTAINS
 
       !Second 3c tensor has optimal pgrid
       pdims_3d = 0
-      CALL dbt_pgrid_create(para_env, pdims_3d, pgrid, tensor_dims=[nblks_3c(1), nblks_3c(2), nimg*nblks_3c(3)])
+      CALL dbt_pgrid_create(para_env, pdims_3d, pgrid, tensor_dims=[nblks_3c(1), nblks_3c(2), stack_size*nblks_3c(3)])
       CALL create_3c_tensor(ints_stack(2), dist1, dist2, dist3, pgrid, ri_data%bsizes_AO_split, &
                             bsizes_RI_ext, bsizes_stack, [1, 2], [3], name="ints_stack")
       DEALLOCATE (dist1, dist2, dist3)
@@ -2485,20 +2607,31 @@ CONTAINS
    END SUBROUTINE get_stack_tensors
 
 ! **************************************************************************************************
-!> \brief Fill the stack 3c integrals (mu^0 sigma^a | P) tensors with a_img according to the order in ac_pairs
-!> \param ints_stack ...
-!> \param t_3c_ints ...
-!> \param ac_pairs ...
+!> \brief Fill the stack of 3c tensors accrding to the order in the images input
+!> \param t_3c_stack ...
+!> \param t_3c_in ...
+!> \param images ...
+!> \param stack_dim ...
 !> \param ri_data ...
+!> \param filter_at ...
+!> \param filter_dim ...
+!> \param idx_to_at ...
+!> \param img_bounds ...
 ! **************************************************************************************************
-   SUBROUTINE fill_ints_stack(ints_stack, t_3c_ints, ac_pairs, ri_data)
-      TYPE(dbt_type), INTENT(INOUT)                      :: ints_stack
-      TYPE(dbt_type), DIMENSION(:), INTENT(INOUT)        :: t_3c_ints
-      INTEGER, DIMENSION(:, :), INTENT(INOUT)            :: ac_pairs
+   SUBROUTINE fill_3c_stack(t_3c_stack, t_3c_in, images, stack_dim, ri_data, filter_at, filter_dim, &
+                            idx_to_at, img_bounds)
+      TYPE(dbt_type), INTENT(INOUT)                      :: t_3c_stack
+      TYPE(dbt_type), DIMENSION(:), INTENT(INOUT)        :: t_3c_in
+      INTEGER, DIMENSION(:), INTENT(INOUT)               :: images
+      INTEGER, INTENT(IN)                                :: stack_dim
       TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+      INTEGER, INTENT(IN), OPTIONAL                      :: filter_at, filter_dim
+      INTEGER, DIMENSION(:), INTENT(INOUT), OPTIONAL     :: idx_to_at
+      INTEGER, INTENT(IN), OPTIONAL                      :: img_bounds(2)
 
-      INTEGER                                            :: a_img, i_img, ind(3), nblks, nimg
-      LOGICAL                                            :: found
+      INTEGER                                            :: dest(3), i_img, idx, ind(3), lb, nblks, &
+                                                            nimg, offset, ub
+      LOGICAL                                            :: do_filter, found
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: blk
       TYPE(dbt_iterator_type)                            :: iter
 
@@ -2507,41 +2640,72 @@ CONTAINS
       nimg = ri_data%nimg
       nblks = SIZE(ri_data%bsizes_AO_split)
 
-      DO i_img = 1, nimg
-         IF (ANY(ac_pairs(:, i_img) == 0)) CYCLE
-         a_img = ac_pairs(1, i_img)
+      do_filter = .FALSE.
+      IF (PRESENT(filter_at) .AND. PRESENT(filter_dim) .AND. PRESENT(idx_to_at)) do_filter = .TRUE.
 
-!$OMP PARALLEL DEFAULT(NONE) SHARED(a_img,i_img,t_3c_ints,ints_stack,nblks) PRIVATE(iter,ind,blk,found)
-         CALL dbt_iterator_start(iter, t_3c_ints(a_img))
+      lb = 1
+      ub = nimg
+      offset = 0
+      IF (PRESENT(img_bounds)) THEN
+         lb = img_bounds(1)
+         ub = img_bounds(2) - 1
+         offset = lb - 1
+      END IF
+
+      DO idx = lb, ub
+         i_img = images(idx)
+         IF (i_img == 0 .OR. i_img > nimg) CYCLE
+
+!$OMP PARALLEL DEFAULT(NONE) &
+!$OMP SHARED(idx,i_img,t_3c_in,t_3c_stack,nblks,stack_dim,filter_at,filter_dim,idx_to_at,do_filter,offset) &
+!$OMP PRIVATE(iter,ind,blk,found,dest)
+         CALL dbt_iterator_start(iter, t_3c_in(i_img))
          DO WHILE (dbt_iterator_blocks_left(iter))
             CALL dbt_iterator_next_block(iter, ind)
-            CALL dbt_get_block(t_3c_ints(a_img), ind, blk, found)
+            CALL dbt_get_block(t_3c_in(i_img), ind, blk, found)
             IF (.NOT. found) CYCLE
 
-            CALL dbt_put_block(ints_stack, [ind(1), ind(2), (i_img - 1)*nblks + ind(3)], SHAPE(blk), blk)
+            IF (do_filter) THEN
+               IF (.NOT. idx_to_at(ind(filter_dim)) == filter_at) CYCLE
+            END IF
+
+            IF (stack_dim == 1) THEN
+               dest = [(idx - offset - 1)*nblks + ind(1), ind(2), ind(3)]
+            ELSE IF (stack_dim == 2) THEN
+               dest = [ind(1), (idx - offset - 1)*nblks + ind(2), ind(3)]
+            ELSE
+               dest = [ind(1), ind(2), (idx - offset - 1)*nblks + ind(3)]
+            END IF
+
+            CALL dbt_put_block(t_3c_stack, dest, SHAPE(blk), blk)
             DEALLOCATE (blk)
          END DO
          CALL dbt_iterator_stop(iter)
 !$OMP END PARALLEL
       END DO !i_img
-      CALL dbt_finalize(ints_stack)
+      CALL dbt_finalize(t_3c_stack)
 
-   END SUBROUTINE fill_ints_stack
+   END SUBROUTINE fill_3c_stack
 
 ! **************************************************************************************************
-!> \brief Fill the stack rho_ao_sigma^0,lambda^c tensors with c_img according to the order in ac_pairs
-!> \param rho_stack ...
-!> \param rho_ao_t ...
-!> \param ac_pairs ...
+!> \brief Fill the stack of 2c tensors based on the content of images input
+!> \param t_2c_stack ...
+!> \param t_2c_in ...
+!> \param images ...
+!> \param stack_dim ...
 !> \param ri_data ...
+!> \param img_bounds ...
 ! **************************************************************************************************
-   SUBROUTINE fill_rho_stack(rho_stack, rho_ao_t, ac_pairs, ri_data)
-      TYPE(dbt_type), INTENT(INOUT)                      :: rho_stack
-      TYPE(dbt_type), DIMENSION(:), INTENT(INOUT)        :: rho_ao_t
-      INTEGER, DIMENSION(:, :), INTENT(INOUT)            :: ac_pairs
+   SUBROUTINE fill_2c_stack(t_2c_stack, t_2c_in, images, stack_dim, ri_data, img_bounds)
+      TYPE(dbt_type), INTENT(INOUT)                      :: t_2c_stack
+      TYPE(dbt_type), DIMENSION(:), INTENT(INOUT)        :: t_2c_in
+      INTEGER, DIMENSION(:), INTENT(INOUT)               :: images
+      INTEGER, INTENT(IN)                                :: stack_dim
       TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+      INTEGER, INTENT(IN), OPTIONAL                      :: img_bounds(2)
 
-      INTEGER                                            :: c_img, i_img, ind(2), nblks, nimg
+      INTEGER                                            :: dest(2), i_img, idx, ind(2), lb, nblks, &
+                                                            nimg, offset, ub
       LOGICAL                                            :: found
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: blk
       TYPE(dbt_iterator_type)                            :: iter
@@ -2551,24 +2715,40 @@ CONTAINS
       nimg = ri_data%nimg
       nblks = SIZE(ri_data%bsizes_AO_split)
 
-      DO i_img = 1, nimg
-         IF (ANY(ac_pairs(:, i_img) == 0)) CYCLE
-         c_img = ac_pairs(2, i_img)
+      lb = 1
+      ub = nimg
+      offset = 0
+      IF (PRESENT(img_bounds)) THEN
+         lb = img_bounds(1)
+         ub = img_bounds(2) - 1
+         offset = lb - 1
+      END IF
 
-!$OMP PARALLEL DEFAULT(NONE) SHARED(c_img,i_img,rho_ao_t,rho_stack,nblks) PRIVATE(iter,ind,blk,found)
-         CALL dbt_iterator_start(iter, rho_ao_t(c_img))
+      DO idx = lb, ub
+         i_img = images(idx)
+         IF (i_img == 0 .OR. i_img > nimg) CYCLE
+
+!$OMP PARALLEL DEFAULT(NONE) SHARED(idx,i_img,t_2c_in,t_2c_stack,nblks,stack_dim,offset) &
+!$OMP PRIVATE(iter,ind,blk,found,dest)
+         CALL dbt_iterator_start(iter, t_2c_in(i_img))
          DO WHILE (dbt_iterator_blocks_left(iter))
             CALL dbt_iterator_next_block(iter, ind)
-            CALL dbt_get_block(rho_ao_t(c_img), ind, blk, found)
+            CALL dbt_get_block(t_2c_in(i_img), ind, blk, found)
             IF (.NOT. found) CYCLE
 
-            CALL dbt_put_block(rho_stack, [(i_img - 1)*nblks + ind(1), ind(2)], SHAPE(blk), blk)
+            IF (stack_dim == 1) THEN
+               dest = [(idx - offset - 1)*nblks + ind(1), ind(2)]
+            ELSE
+               dest = [ind(1), (idx - offset - 1)*nblks + ind(2)]
+            END IF
+
+            CALL dbt_put_block(t_2c_stack, dest, SHAPE(blk), blk)
             DEALLOCATE (blk)
          END DO
          CALL dbt_iterator_stop(iter)
 !$OMP END PARALLEL
-      END DO !i_img
-      CALL dbt_finalize(rho_stack)
+      END DO !idx
+      CALL dbt_finalize(t_2c_stack)
 
-   END SUBROUTINE fill_rho_stack
+   END SUBROUTINE fill_2c_stack
 END MODULE

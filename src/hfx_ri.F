@@ -514,19 +514,19 @@ CONTAINS
 
       DEALLOCATE (starts_array_mc_int, ends_array_mc_int)
 
-      pdims = 0
-      CALL dbt_pgrid_create(para_env, pdims, pgrid, tensor_dims=[natom, natom, MAX(1, natom/n_mem)])
-
       !We separate the K-points and standard 3c integrals, because handle quite differently
       IF (.NOT. do_kpoints_prv) THEN
 
+         pdims = 0
+         CALL dbt_pgrid_create(para_env, pdims, pgrid, tensor_dims=[MAX(1, natom/n_mem), natom, natom])
+
          ALLOCATE (t_3c_int_batched(1, 1))
-         CALL create_3c_tensor(t_3c_int_batched(1, 1), dist_RI, dist_AO_1, dist_AO_2, ri_data%pgrid, &
+         CALL create_3c_tensor(t_3c_int_batched(1, 1), dist_RI, dist_AO_1, dist_AO_2, pgrid, &
                                sizes_RI, sizes_AO, sizes_AO, map1=[1], map2=[2, 3], &
                                name="(RI | AO AO)")
 
          CALL get_qs_env(qs_env, nkind=nkind, particle_set=particle_set, atomic_kind_set=atomic_kind_set)
-         CALL dbt_mp_environ_pgrid(ri_data%pgrid, pdims, pcoord)
+         CALL dbt_mp_environ_pgrid(pgrid, pdims, pcoord)
          CALL mp_comm_t3c%create(pgrid%mp_comm_2d, 3, pdims)
          CALL distribution_3d_create(dist_3d, dist_RI, dist_AO_1, dist_AO_2, &
                                      nkind, particle_set, mp_comm_t3c, own_comm=.TRUE.)
@@ -571,6 +571,9 @@ CONTAINS
          CALL dbt_destroy(t_3c_tmp)
 
       ELSE !do_kpoints
+
+         pdims = 0
+         CALL dbt_pgrid_create(para_env, pdims, pgrid, tensor_dims=[natom, natom, MAX(1, natom/n_mem)])
 
          ALLOCATE (t_3c_int_batched(nimg, ri_data%ncell_RI))
          CALL create_3c_tensor(t_3c_int_batched(1, 1), dist_AO_1, dist_AO_2, dist_RI, &
@@ -3868,6 +3871,8 @@ CONTAINS
       CALL dbt_create(rho_ao_t_3d, "rho_ao_3d", dist_3d, [1, 2], [3], ri_data%bsizes_AO_split, &
                       ri_data%bsizes_AO_split, [1])
       DEALLOCATE (dist1, dist2, dist3)
+      CALL dbt_pgrid_destroy(pgrid_3d)
+      CALL dbt_distribution_destroy(dist_3d)
 
       ! copy density
       nblks = 0
@@ -3948,19 +3953,24 @@ CONTAINS
       CALL dbt_create(density_coeffs_t, "density_coeffs", dist_2d, [1], [2], ri_data%bsizes_RI_split, [1])
       CALL dbt_create(density_coeffs_t, density_tmp)
       DEALLOCATE (dist1, dist2)
+      CALL dbt_pgrid_destroy(pgrid_2d)
+      CALL dbt_distribution_destroy(dist_2d)
 
       CALL dbt_get_info(ri_data%t_3c_int_ctr_3(1, 1), nfull_total=dims_3c)
 
       ! The 3c integrals tensor, in case we compute them here
-      CALL create_3c_tensor(t_3c_int_batched(1, 1), dist1, dist2, dist3, ri_data%pgrid, &
+      pdims_3d = 0
+      CALL dbt_pgrid_create(para_env, pdims_3d, pgrid_3d, tensor_dims=[MAX(1, natom/n_mem), natom, natom])
+      CALL create_3c_tensor(t_3c_int_batched(1, 1), dist1, dist2, dist3, pgrid_3d, &
                             ri_data%bsizes_RI, ri_data%bsizes_AO, ri_data%bsizes_AO, map1=[1], map2=[2, 3], &
                             name="(RI | AO AO)")
 
-      CALL dbt_mp_environ_pgrid(ri_data%pgrid, pdims_3d, pcoord_3d)
-      CALL mp_comm_t3c%create(ri_data%pgrid%mp_comm_2d, 3, pdims_3d)
+      CALL dbt_mp_environ_pgrid(pgrid_3d, pdims_3d, pcoord_3d)
+      CALL mp_comm_t3c%create(pgrid_3d%mp_comm_2d, 3, pdims_3d)
       CALL distribution_3d_create(dist_nl3c, dist1, dist2, dist3, nkind, particle_set, &
                                   mp_comm_t3c, own_comm=.TRUE.)
       DEALLOCATE (dist1, dist2, dist3)
+      CALL dbt_pgrid_destroy(pgrid_3d)
 
       CALL build_3c_neighbor_lists(nl_3c, basis_set_RI, basis_set_AO, basis_set_AO, dist_nl3c, ri_data%ri_metric, &
                                    "HFX_3c_nl", qs_env, op_pos=1, sym_jk=.TRUE., own_dist=.TRUE.)
@@ -4045,10 +4055,6 @@ CONTAINS
       CALL dbt_destroy(rho_ao_t_3d)
       CALL dbt_destroy(density_coeffs_t)
       CALL dbt_destroy(t_3c_int_batched(1, 1))
-      CALL dbt_pgrid_destroy(pgrid_2d)
-      CALL dbt_distribution_destroy(dist_2d)
-      CALL dbt_pgrid_destroy(pgrid_3d)
-      CALL dbt_distribution_destroy(dist_3d)
 
       CALL timestop(handle)
 

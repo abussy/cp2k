@@ -371,7 +371,7 @@ MODULE hfx_types
       REAL(KIND=dp) :: filter_eps, filter_eps_2c, filter_eps_storage, filter_eps_mo, &
                        eps_lanczos, eps_pgf_orb, eps_eigval, kp_RI_range, kp_image_range
       INTEGER :: t2c_sqrt_order, max_iter_lanczos, flavor, unit_nr_dbcsr, unit_nr, &
-                 min_bsize, max_bsize_MO, t2c_method, nelectron_total, input_flavor, ncell_RI, nimg
+                 min_bsize, max_bsize_MO, t2c_method, nelectron_total, input_flavor, ncell_RI, nimg, batch_size
       LOGICAL :: check_2c_inv, calc_condnum
 
       TYPE(libint_potential_type) :: ri_metric
@@ -396,7 +396,7 @@ MODULE hfx_types
                                             bsizes_RI_fit, bsizes_AO_fit
 
       ! KP RI-HFX basis info
-      INTEGER, DIMENSION(:), ALLOCATABLE ::  img_to_RI_cell, present_images
+      INTEGER, DIMENSION(:), ALLOCATABLE ::  img_to_RI_cell, present_images, idx_to_img
 
       ! KP RI-HFX cost information for a given atom pair i,j at a given cell b
       REAL(dp), DIMENSION(:, :, :), ALLOCATABLE :: kp_cost
