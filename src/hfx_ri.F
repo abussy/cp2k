@@ -10,7 +10,7 @@
 ! **************************************************************************************************
 
 MODULE hfx_ri
-
+   USE machine,                         ONLY: m_flush, m_memory
    USE OMP_LIB,                         ONLY: omp_get_num_threads,&
                                               omp_get_thread_num
    USE arnoldi_api,                     ONLY: arnoldi_extremal
@@ -85,7 +85,7 @@ MODULE hfx_ri
    USE message_passing,                 ONLY: mp_cart_create,&
                                               mp_environ,&
                                               mp_sum,&
-                                              mp_sync
+                                              mp_sync, mp_max
    USE particle_methods,                ONLY: get_particle_set
    USE particle_types,                  ONLY: particle_type
    USE qs_environment_types,            ONLY: get_qs_env,&
@@ -3744,7 +3744,7 @@ CONTAINS
       INTEGER                                            :: a, b, handle, i_mem, idx, mp_comm_t3c, &
                                                             n_dependent, n_mem, n_mem_RI, natom, &
                                                             nblk_per_thread, nblks, nkind
-      INTEGER(int_8)                                     :: nze
+      INTEGER(int_8)                                     :: nze, memory
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: batch_block_end, batch_block_start, &
                                                             dist1, dist2, dist3, dummy1, dummy2, &
                                                             idx1, idx2, idx3
@@ -3850,6 +3850,8 @@ CONTAINS
       CALL dbt_create(rho_ao_t_3d, "rho_ao_3d", dist_3d, [1, 2], [3], ri_data%bsizes_AO_split, &
                       ri_data%bsizes_AO_split, [1])
       DEALLOCATE (dist1, dist2, dist3)
+      CALL dbt_pgrid_destroy(pgrid_3d)
+      CALL dbt_distribution_destroy(dist_3d)
 
       ! copy density
       nblks = 0
@@ -3930,19 +3932,24 @@ CONTAINS
       CALL dbt_create(density_coeffs_t, "density_coeffs", dist_2d, [1], [2], ri_data%bsizes_RI_split, [1])
       CALL dbt_create(density_coeffs_t, density_tmp)
       DEALLOCATE (dist1, dist2)
+      CALL dbt_distribution_destroy(dist_2d)
+      CALL dbt_pgrid_destroy(pgrid_2d)
 
       CALL dbt_get_info(ri_data%t_3c_int_ctr_3(1, 1), nfull_total=dims_3c)
 
       ! The 3c integrals tensor, in case we compute them here
-      CALL create_3c_tensor(t_3c_int_batched(1, 1), dist1, dist2, dist3, ri_data%pgrid, &
+      pdims_3d = 0
+      CALL dbt_pgrid_create(para_env%group, pdims_3d, pgrid_3d, tensor_dims=[MAX(1, natom/n_mem), natom, natom])
+      CALL create_3c_tensor(t_3c_int_batched(1, 1), dist1, dist2, dist3, pgrid_3d, &
                             ri_data%bsizes_RI, ri_data%bsizes_AO, ri_data%bsizes_AO, map1=[1], map2=[2, 3], &
                             name="(RI | AO AO)")
 
-      CALL dbt_mp_environ_pgrid(ri_data%pgrid, pdims_3d, pcoord_3d)
-      CALL mp_cart_create(ri_data%pgrid%mp_comm_2d, 3, pdims_3d, pcoord_3d, mp_comm_t3c)
+      CALL dbt_mp_environ_pgrid(pgrid_3d, pdims_3d, pcoord_3d)
+      CALL mp_cart_create(pgrid_3d%mp_comm_2d, 3, pdims_3d, pcoord_3d, mp_comm_t3c)
       CALL distribution_3d_create(dist_nl3c, dist1, dist2, dist3, nkind, particle_set, &
                                   mp_comm_t3c, own_comm=.TRUE.)
       DEALLOCATE (dist1, dist2, dist3)
+      CALL dbt_pgrid_destroy(pgrid_3d)
 
       CALL build_3c_neighbor_lists(nl_3c, basis_set_RI, basis_set_AO, basis_set_AO, dist_nl3c, ri_data%ri_metric, &
                                    "HFX_3c_nl", qs_env, op_pos=1, sym_jk=.TRUE., own_dist=.TRUE.)
@@ -3986,6 +3993,15 @@ CONTAINS
                            contract_2=[1], notcontract_2=[2], &
                            map_1=[1], map_2=[2], filter_eps=ri_data%filter_eps)
 
+         CALL m_memory(memory)
+         CALL mp_max(memory, para_env%group)
+         IF (ri_data%unit_nr > 0) THEN
+            WRITE (ri_data%unit_nr, '(T2,A,I4,A,I4)') &
+               "BATCH_INFO| finished with integral batch ", i_mem, " of ", n_mem
+            WRITE(ri_data%unit_nr, '(T2,A,I12)') &
+               "            Estimated peak process memory [MiB]", memory/(1024*1024)
+            CALL m_flush(ri_data%unit_nr)
+         END IF
       END DO
       CALL neighbor_list_3c_destroy(nl_3c)
 
@@ -4026,11 +4042,7 @@ CONTAINS
       CALL dbt_destroy(rho_ao_t)
       CALL dbt_destroy(rho_ao_t_3d)
       CALL dbt_destroy(density_coeffs_t)
-      CALL dbt_destroy(t_3c_int_batched(1, 1))
-      CALL dbt_pgrid_destroy(pgrid_2d)
-      CALL dbt_distribution_destroy(dist_2d)
-      CALL dbt_pgrid_destroy(pgrid_3d)
-      CALL dbt_distribution_destroy(dist_3d)
+      CALL dbt_destroy(t_3c_int_batched(1, 1)) 
 
       CALL timestop(handle)
 
