@@ -44,10 +44,11 @@ MODULE hfx_ri
                                               cp_print_key_unit_nr
    USE dbcsr_api,                       ONLY: &
         dbcsr_add, dbcsr_add_on_diag, dbcsr_complete_redistribute, dbcsr_copy, dbcsr_create, &
-        dbcsr_desymmetrize, dbcsr_distribution_get, dbcsr_distribution_release, &
-        dbcsr_distribution_type, dbcsr_dot, dbcsr_filter, dbcsr_frobenius_norm, dbcsr_get_info, &
-        dbcsr_get_num_blocks, dbcsr_multiply, dbcsr_p_type, dbcsr_release, dbcsr_scale, &
-        dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, dbcsr_type_symmetric
+        dbcsr_desymmetrize, dbcsr_distribution_get, dbcsr_distribution_new, &
+        dbcsr_distribution_release, dbcsr_distribution_type, dbcsr_dot, dbcsr_filter, &
+        dbcsr_frobenius_norm, dbcsr_get_info, dbcsr_get_num_blocks, dbcsr_multiply, dbcsr_p_type, &
+        dbcsr_release, dbcsr_scale, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, &
+        dbcsr_type_symmetric
    USE dbt_api,                         ONLY: &
         dbt_batched_contract_finalize, dbt_batched_contract_init, dbt_clear, dbt_contract, &
         dbt_copy, dbt_copy_matrix_to_tensor, dbt_copy_tensor_to_matrix, dbt_create, &
@@ -445,17 +446,22 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ri_pre_scf_calc_tensors'
 
       CHARACTER                                          :: symm
-      INTEGER                                            :: handle, i_img, i_mem, ibasis, j_img, &
-                                                            n_mem, natom, nimg, nkind
-      INTEGER, ALLOCATABLE, DIMENSION(:) :: dist_AO_1, dist_AO_2, dist_RI, &
-         ends_array_mc_block_int, ends_array_mc_int, sizes_AO, sizes_RI, &
+      INTEGER                                            :: group, handle, i_img, i_mem, ibasis, &
+                                                            n_mem, natom, nblks_AO, nblks_RI, &
+                                                            ncell_RI, nimg, nkind
+      INTEGER, ALLOCATABLE, DIMENSION(:) :: dist_AO_1, dist_AO_2, dist_AO_img, dist_RI, &
+         dist_RI_img, ends_array_mc_block_int, ends_array_mc_int, sizes_AO, sizes_AO_img, &
+         sizes_AO_img_split, sizes_RI, sizes_RI_img, sizes_RI_img_split, &
          starts_array_mc_block_int, starts_array_mc_int
       INTEGER, DIMENSION(3)                              :: pcoord, pdims
-      INTEGER, DIMENSION(:), POINTER                     :: col_bsize, row_bsize
+      INTEGER, DIMENSION(:), POINTER                     :: col_bsize_img, col_dist, col_dist_img, &
+                                                            row_bsize, row_dist
+      INTEGER, DIMENSION(:, :), POINTER                  :: pgrid_dbcsr
       LOGICAL                                            :: converged, do_kpoints_prv
       REAL(dp)                                           :: max_ev, min_ev, RI_range
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
-      TYPE(dbcsr_distribution_type)                      :: dbcsr_dist
+      TYPE(dbcsr_distribution_type)                      :: dbcsr_dist, dbcsr_dist_img
+      TYPE(dbt_distribution_type)                        :: t_dist
       TYPE(dbt_pgrid_type)                               :: pgrid
       TYPE(dbt_type)                                     :: t_3c_tmp
       TYPE(dbt_type), ALLOCATABLE, DIMENSION(:, :)       :: t_3c_int_batched
@@ -475,8 +481,8 @@ CONTAINS
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
 
       CALL timeset(routineN, handle)
-      NULLIFY (col_bsize, row_bsize, dist_2d, nl_2c_pot, nl_2c_RI, &
-               particle_set, qs_kind_set, ks_env, para_env)
+      NULLIFY (col_bsize_img, row_bsize, dist_2d, nl_2c_pot, nl_2c_RI, col_dist, row_dist, col_dist_img, &
+               particle_set, qs_kind_set, ks_env, para_env, pgrid_dbcsr)
 
       CALL get_qs_env(qs_env, natom=natom, nkind=nkind, qs_kind_set=qs_kind_set, particle_set=particle_set, &
                       distribution_2d=dist_2d, ks_env=ks_env, dft_control=dft_control, para_env=para_env)
@@ -487,6 +493,7 @@ CONTAINS
       nimg = 1
       IF (do_kpoints_prv) THEN
          nimg = ri_data%nimg
+         ncell_RI = ri_data%ncell_RI
          RI_range = ri_data%kp_RI_range
       END IF
 
@@ -575,10 +582,36 @@ CONTAINS
          pdims = 0
          CALL dbt_pgrid_create(para_env, pdims, pgrid, tensor_dims=[natom, natom, MAX(1, natom/n_mem)])
 
-         ALLOCATE (t_3c_int_batched(nimg, ri_data%ncell_RI))
-         CALL create_3c_tensor(t_3c_int_batched(1, 1), dist_AO_1, dist_AO_2, dist_RI, &
+         CALL create_3c_tensor(t_3c_tmp, dist_AO_1, dist_AO_2, dist_RI, &
                                pgrid, sizes_AO, sizes_AO, sizes_RI, map1=[1, 2], map2=[3], &
                                name="(AO AO | RI)")
+         CALL dbt_destroy(t_3c_tmp)
+
+         !Note: because total number of individual tensors is limited, put all images in the same
+         !      larger tensors with block dimensions (natom, nimg*natom, ncell_RI*natom) the distribution
+         !      accross the MPI ranks must be consistent with that of a single iamge (t_3c_tmp above)
+         nblks_AO = SIZE(ri_data%bsizes_AO_split)
+         nblks_RI = SIZE(ri_data%bsizes_RI_split)
+         ALLOCATE (dist_AO_img(nimg*natom), dist_RI_img(ncell_RI*natom))
+         ALLOCATE (sizes_AO_img(nimg*natom), sizes_RI_img(ncell_RI*natom))
+         ALLOCATE (sizes_AO_img_split(nimg*nblks_AO), sizes_RI_img_split(ncell_RI*nblks_RI))
+         DO i_img = 1, nimg
+            dist_AO_img((i_img - 1)*natom + 1:i_img*natom) = dist_AO_2(:)
+            sizes_AO_img((i_img - 1)*natom + 1:i_img*natom) = sizes_AO(:)
+            sizes_AO_img_split((i_img - 1)*nblks_AO + 1:i_img*nblks_AO) = ri_data%bsizes_AO_split(:)
+         END DO
+         DO i_img = 1, ncell_RI
+            dist_RI_img((i_img - 1)*natom + 1:i_img*natom) = dist_RI(:)
+            sizes_RI_img((i_img - 1)*natom + 1:i_img*natom) = sizes_RI(:)
+            sizes_RI_img_split((i_img - 1)*nblks_RI + 1:i_img*nblks_RI) = ri_data%bsizes_RI_split(:)
+         END DO
+
+         CALL dbt_distribution_new(t_dist, pgrid, dist_AO_1, dist_AO_img, dist_RI_img)
+
+         ALLOCATE (t_3c_int_batched(1, 1))
+         CALL dbt_create(t_3c_int_batched(1, 1), "(AO AO | RI)", t_dist, [1], [2, 3], &
+                         sizes_AO, sizes_AO_img, sizes_RI_img)
+         CALL dbt_distribution_destroy(t_dist)
 
          CALL get_qs_env(qs_env, nkind=nkind, particle_set=particle_set, atomic_kind_set=atomic_kind_set)
          CALL dbt_mp_environ_pgrid(pgrid, pdims, pcoord)
@@ -591,25 +624,11 @@ CONTAINS
          CALL build_3c_neighbor_lists(nl_3c, basis_set_AO, basis_set_AO, basis_set_RI, dist_3d, ri_data%ri_metric, &
                                       "HFX_3c_nl", qs_env, op_pos=2, sym_ij=.FALSE., own_dist=.TRUE.)
 
-         DO j_img = 1, ri_data%ncell_RI
-            DO i_img = 1, nimg
-               IF (i_img == 1 .AND. j_img == 1) CYCLE
-               CALL dbt_create(t_3c_int_batched(1, 1), t_3c_int_batched(i_img, j_img))
-            END DO
-         END DO
-
-         CALL create_3c_tensor(t_3c_int(1, 1), dist_RI, dist_AO_1, dist_AO_2, ri_data%pgrid, &
-                               ri_data%bsizes_RI_split, ri_data%bsizes_AO_split, ri_data%bsizes_AO_split, &
+         CALL create_3c_tensor(t_3c_int(1, 1), dist_AO_1, dist_RI, dist_AO_2, ri_data%pgrid, &
+                               ri_data%bsizes_AO_split, sizes_RI_img_split, sizes_AO_img_split, &
                                map1=[1], map2=[2, 3], &
                                name="O (RI AO | AO)")
-         DO j_img = 1, nimg
-            DO i_img = 1, ri_data%ncell_RI
-               IF (i_img == 1 .AND. j_img == 1) CYCLE
-               CALL dbt_create(t_3c_int(1, 1), t_3c_int(i_img, j_img))
-            END DO
-         END DO
 
-         CALL dbt_create(t_3c_int(1, 1), t_3c_tmp)
          DO i_mem = 1, n_mem
             CALL build_3c_integrals(t_3c_int_batched, ri_data%filter_eps, qs_env, nl_3c, &
                                     basis_set_AO, basis_set_AO, basis_set_RI, &
@@ -618,25 +637,14 @@ CONTAINS
                                     bounds_k=[starts_array_mc_block_int(i_mem), ends_array_mc_block_int(i_mem)], &
                                     RI_range=RI_range, img_to_RI_cell=ri_data%img_to_RI_cell)
 
-            DO j_img = 1, ri_data%ncell_RI
-               DO i_img = 1, nimg
-                  !we start with (mu^0 sigma^i | P^j) and finish with (P^i | mu^0 sigma^j)
-                  CALL dbt_copy(t_3c_int_batched(i_img, j_img), t_3c_tmp, order=[3, 2, 1], move_data=.TRUE.)
-                  CALL dbt_copy(t_3c_tmp, t_3c_int(j_img, i_img), order=[1, 3, 2], &
-                                summation=.TRUE., move_data=.TRUE.)
-                  CALL dbt_filter(t_3c_int(j_img, i_img), ri_data%filter_eps)
-               END DO
-            END DO
+            !we start with (mu^0 sigma^i | P^j) and finish with (mu^0 P^i sigma^j)
+            CALL dbt_copy(t_3c_int_batched(1, 1), t_3c_int(1, 1), order=[1, 3, 2], summation=.TRUE., move_data=.TRUE.)
+            CALL dbt_filter(t_3c_int(1, 1), ri_data%filter_eps)
          END DO
 
-         DO j_img = 1, ri_data%ncell_RI
-            DO i_img = 1, nimg
-               CALL dbt_destroy(t_3c_int_batched(i_img, j_img))
-            END DO
-         END DO
+         CALL dbt_destroy(t_3c_int_batched(1, 1))
          DEALLOCATE (t_3c_int_batched)
          CALL neighbor_list_3c_destroy(nl_3c)
-         CALL dbt_destroy(t_3c_tmp)
       END IF
       CALL dbt_pgrid_destroy(pgrid)
 
@@ -644,30 +652,32 @@ CONTAINS
                                    "HFX_2c_nl_pot", qs_env, sym_ij=.NOT. do_kpoints_prv, &
                                    dist_2d=dist_2d)
 
+      !For k-points, keep 2c images as part of a large matrix, with repeating distribution
       CALL cp_dbcsr_dist2d_to_dist(dist_2d, dbcsr_dist)
-      ALLOCATE (row_bsize(SIZE(sizes_RI)))
-      ALLOCATE (col_bsize(SIZE(sizes_RI)))
-      row_bsize(:) = sizes_RI
-      col_bsize(:) = sizes_RI
+      CALL dbcsr_distribution_get(dbcsr_dist, row_dist=row_dist, col_dist=col_dist, group=group, pgrid=pgrid_dbcsr)
+
+      ALLOCATE (row_bsize(natom), col_bsize_img(nimg*natom), col_dist_img(nimg*natom))
+      row_bsize(:) = sizes_RI(:)
+      DO i_img = 1, nimg
+         col_bsize_img((i_img - 1)*natom + 1:i_img*natom) = sizes_RI(:)
+         col_dist_img((i_img - 1)*natom + 1:i_img*natom) = col_dist(:)
+      END DO
+
+      CALL dbcsr_distribution_new(dbcsr_dist_img, group=group, pgrid=pgrid_dbcsr, &
+                                  row_dist=row_dist, col_dist=col_dist_img)
 
       !Use non-symmetric nl and matrices for k-points
       symm = dbcsr_type_symmetric
       IF (do_kpoints_prv) symm = dbcsr_type_no_symmetry
 
-      CALL dbcsr_create(t_2c_int_pot(1), "(R|P) HFX", dbcsr_dist, symm, row_bsize, col_bsize)
-      DO i_img = 2, nimg
-         CALL dbcsr_create(t_2c_int_pot(i_img), template=t_2c_int_pot(1))
-      END DO
+      CALL dbcsr_create(t_2c_int_pot(1), "(R|P) HFX", dbcsr_dist_img, symm, row_bsize, col_bsize_img)
 
       IF (.NOT. ri_data%same_op) THEN
-         CALL dbcsr_create(t_2c_int_RI(1), "(R|P) HFX", dbcsr_dist, symm, row_bsize, col_bsize)
-         DO i_img = 2, nimg
-            CALL dbcsr_create(t_2c_int_RI(i_img), template=t_2c_int_RI(1))
-         END DO
+         CALL dbcsr_create(t_2c_int_RI(1), "(R|P) HFX", dbcsr_dist_img, symm, row_bsize, col_bsize_img)
       END IF
-      DEALLOCATE (col_bsize, row_bsize)
-
+      CALL dbcsr_distribution_release(dbcsr_dist_img)
       CALL dbcsr_distribution_release(dbcsr_dist)
+      DEALLOCATE (col_bsize_img, row_bsize, col_dist_img)
 
       CALL build_2c_integrals(t_2c_int_pot, ri_data%filter_eps_2c, qs_env, nl_2c_pot, basis_set_RI, basis_set_RI, &
                               ri_data%hfx_pot, do_kpoints=do_kpoints_prv, do_hfx_kpoints=do_kpoints_prv)
