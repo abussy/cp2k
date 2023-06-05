@@ -142,7 +142,7 @@ CONTAINS
       CHARACTER(default_string_length)                   :: basis_type, filename, header, my_pos_cube
       INTEGER                                            :: i, natom, nsgf_tot, unit_nr
       LOGICAL                                            :: append_cube, do_fft, do_print, &
-                                                            file_exists, mpi_io
+                                                            file_exists, mpi_io, response_only
       REAL(dp)                                           :: ehartree
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: density_coeffs
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -255,9 +255,11 @@ CONTAINS
          CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_g, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
          CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_r, use_data=REALDATA3D, in_space=REALSPACE)
 
+         response_only = section_get_lval(qs_env%input, "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE%RESPONSE_DENSITY_ONLY")
+
          NULLIFY (rho_core)
          CALL get_qs_env(qs_env, rho_core=rho_core)
-         CALL pw_axpy(rho_core, rho_g)
+         IF (.NOT. response_only) CALL pw_axpy(rho_core, rho_g)
 
          CALL pw_poisson_solve(poisson_env, rho_g, ehartree, v_hartree_g)
          CALL pw_transfer(v_hartree_g, v_hartree_r)

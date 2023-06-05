@@ -739,6 +739,15 @@ CONTAINS
       CALL section_add_keyword(print_key, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="RESPONSE_DENSITY_ONLY", &
+                          variants=s2a("RESPONSE_ONLY", "RESP_ONLY"), &
+                          description="Assumes that the RI density coefficients represent a response "//&
+                                      "density only. The core contributions to the density are ginored "//&
+                                      "when solving the Poisson equation.", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(print_key, keyword) 
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="APPEND", &
                           description="append the cube files when they already exist", &
                           default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
