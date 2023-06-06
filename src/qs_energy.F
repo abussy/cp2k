@@ -18,6 +18,7 @@ MODULE qs_energy
    USE energy_corrections,              ONLY: energy_correction
    USE excited_states,                  ONLY: excited_state_energy
    USE lri_environment_methods,         ONLY: lri_print_stat
+   USE ml_ri_perso,                     ONLY: print_ri_density
    USE qs_energy_init,                  ONLY: qs_energies_init
    USE qs_energy_types,                 ONLY: qs_energy_type
    USE qs_energy_utils,                 ONLY: qs_energies_compute_matrix_w,&
@@ -28,7 +29,6 @@ MODULE qs_energy
                                               qs_environment_type
    USE qs_ks_methods,                   ONLY: qs_ks_update_qs_env
    USE qs_scf,                          ONLY: scf
-   USE qs_scf_output,                   ONLY: print_ri_density
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE

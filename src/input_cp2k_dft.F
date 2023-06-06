@@ -698,6 +698,13 @@ CONTAINS
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="PRINT_ELECTROSTATIC_ENERGY", &
+                          variants=s2a("ENERGIY", "ELECTROSTATIC_ENERGY", "PRINT_ENERGY"), &
+                          description="Whether the electrostatic energy should be printed out.", &
+                          default_l_val=.TRUE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="FOURIER_TRANSFORM", &
                           variants=s2a("FFT"), &
                           description="Whether the Fourier transform of the density (and back) should "// &
