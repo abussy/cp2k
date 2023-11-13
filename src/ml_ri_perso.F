@@ -38,7 +38,8 @@ MODULE ml_ri_perso
    USE pw_methods,                      ONLY: pw_axpy,&
                                               pw_integral_ab,&
                                               pw_transfer,&
-                                              pw_zero
+                                              pw_zero, &
+                                              pw_derive
    USE pw_poisson_methods,              ONLY: pw_poisson_solve
    USE pw_poisson_types,                ONLY: pw_poisson_type
    USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
@@ -79,7 +80,8 @@ CONTAINS
 
       CHARACTER(default_path_length)                     :: mpi_filename
       CHARACTER(default_string_length)                   :: basis_type, filename, header, my_pos_cube
-      INTEGER                                            :: i, natom, nsgf_tot, unit_nr
+      CHARACTER(len=1), DIMENSION(3), PARAMETER          :: cdir = (/"x", "y", "z"/)
+      INTEGER                                            :: i, natom, nsgf_tot, unit_nr, id, nd(3)
       LOGICAL                                            :: append_cube, do_fft, do_print, &
                                                             file_exists, mpi_io, print_energy, &
                                                             response_only
@@ -223,6 +225,63 @@ CONTAINS
                             mpi_io=mpi_io)
          CALL cp_print_key_finished_output(unit_nr, logger, qs_env%input, &
                                            "DFT%PRINT%RI_DENSITY%V_ELECTROSTATIC_CUBE", mpi_io=mpi_io)
+
+         CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_r)
+         CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_g)
+      END IF
+
+      !Print the electric field produced by the RI density
+      IF (BTEST(cp_print_key_should_output(logger%iter_info, qs_env%input, &
+                                           "DFT%PRINT%RI_DENSITY%EFIELD_CUBE"), cp_p_file)) THEN
+
+         CALL pw_zero(rho_r)
+         CALL pw_zero(rho_g)
+         CALL calculate_wavefunction(dummy_fm, 1, rho_r, rho_g, atomic_kind_set, qs_kind_set, cell, &
+                                  dft_control, particle_set, pw_env, TRIM(basis_type), density_coeffs)
+
+         CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_g, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+         CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_r, use_data=REALDATA3D, in_space=REALSPACE)
+
+         response_only = section_get_lval(qs_env%input, "DFT%PRINT%RI_DENSITY%EFIELD_CUBE%RESPONSE_DENSITY_ONLY")
+
+         NULLIFY (rho_core)
+         CALL get_qs_env(qs_env, rho_core=rho_core)
+         IF (.NOT. response_only) CALL pw_axpy(rho_core, rho_g)
+
+         CALL pw_poisson_solve(poisson_env, rho_g, ehartree, v_hartree_g)
+         CALL pw_transfer(v_hartree_g, v_hartree_r)
+
+         !Electric field is the derivative of the electrostatic potential
+         DO id = 1, 3
+
+            !rho_r and v_hartree_g are auxiliary quantities
+
+            CALL pw_transfer(v_hartree_r, v_hartree_g)
+            nd = 0
+            nd(id) = 1
+            CALL pw_derive(v_hartree_g, nd)
+            CALL pw_transfer(v_hartree_g, rho_r)
+
+            append_cube = section_get_lval(qs_env%input, "DFT%PRINT%RI_DENSITY%EFIELD_CUBE%APPEND")
+            my_pos_cube = "REWIND"
+            IF (append_cube) THEN
+               my_pos_cube = "APPEND"
+            END IF
+
+            filename = "RI_EFIELD_"
+            mpi_io = .TRUE.
+            unit_nr = cp_print_key_unit_nr(logger, qs_env%input, "DFT%PRINT%RI_DENSITY%EFIELD_CUBE", &
+                                           extension=".cube", middle_name=TRIM(filename)//cdir(id), &
+                                           file_position=my_pos_cube, mpi_io=mpi_io)
+
+            CALL cp_pw_to_cube(rho_r, unit_nr, "ELECTRIC FIELD DUE TO RI DENSITY", particles=particles, &
+                               stride=section_get_ivals(qs_env%input, "DFT%PRINT%RI_DENSITY%EFIELD_CUBE%STRIDE"), &
+                               mpi_io=mpi_io)
+
+            CALL cp_print_key_finished_output(unit_nr, logger, qs_env%input, &
+                                              "DFT%PRINT%RI_DENSITY%EFIELD_CUBE", mpi_io=mpi_io)
+         END DO !id
+
 
          CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_r)
          CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_g)
