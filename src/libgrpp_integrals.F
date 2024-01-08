@@ -15,7 +15,7 @@ MODULE libgrpp_integrals
    USE orbital_pointers, ONLY: nco, &
                                ncoset
 #if defined(__LIBGRPP)
-   USE libgrpp, ONLY: libgrpp_type1_integrals, libgrpp_type2_integrals
+   USE libgrpp, ONLY: libgrpp_type1_integrals, libgrpp_type2_integrals, libgrpp_init
 #endif
 #include "./base/base_uses.f90"
 
@@ -79,6 +79,8 @@ CONTAINS
                                                             zeti, zetj
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: tmp
       REAL(dp), DIMENSION(3)                             :: ra, rb, rc
+
+      CALL libgrpp_init()
 
       !libgrpp requires absolute positions, not relative ones
       ra(:) = 0.0_dp
@@ -214,6 +216,8 @@ CONTAINS
                                                             zeti, zetj
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: tmp
       REAL(dp), DIMENSION(3)                             :: ra, rb, rc
+
+      CALL libgrpp_init()
 
       !libgrpp requires absolute positions, not relative ones
       ra(:) = 0.0_dp
