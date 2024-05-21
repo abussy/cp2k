@@ -12,6 +12,7 @@
 !> \author JGH (2020-01)
 ! **************************************************************************************************
 MODULE qs_density_matrices
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               copy_fm_to_dbcsr,&
@@ -110,7 +111,7 @@ CONTAINS
             CALL dbcsr_copy(dbcsr_tmp, mo_set%mo_coeff_b)
             CALL dbcsr_scale_by_vector(dbcsr_tmp, mo_set%occupation_numbers(1:mo_set%homo), &
                                        side='right')
-            CALL dbcsr_multiply("N", "T", 1.0_dp, mo_set%mo_coeff_b, dbcsr_tmp, &
+            CALL cp_dbcsr_multiply("N", "T", 1.0_dp, mo_set%mo_coeff_b, dbcsr_tmp, &
                                 1.0_dp, density_matrix, retain_sparsity=my_retain_sparsity, &
                                 last_k=mo_set%homo)
             CALL dbcsr_release(dbcsr_tmp)
@@ -128,7 +129,7 @@ CONTAINS
          END IF
       ELSE
          IF (my_use_dbcsr) THEN
-            CALL dbcsr_multiply("N", "T", mo_set%maxocc, mo_set%mo_coeff_b, mo_set%mo_coeff_b, &
+            CALL cp_dbcsr_multiply("N", "T", mo_set%maxocc, mo_set%mo_coeff_b, mo_set%mo_coeff_b, &
                                 1.0_dp, density_matrix, retain_sparsity=my_retain_sparsity, &
                                 last_k=mo_set%homo)
          ELSE

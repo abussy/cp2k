@@ -20,6 +20,7 @@
 !>      - SCCS implementation (16.10.2013,MK)
 ! **************************************************************************************************
 MODULE qs_ks_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_dm_methods,                 ONLY: admm_dm_calc_rho_aux,&
                                               admm_dm_merge_ks_matrix
    USE admm_methods,                    ONLY: admm_mo_calc_rho_aux,&
@@ -991,7 +992,7 @@ CONTAINS
 
          CALL get_mo_set(mo_set=mo_array(ispin), mo_coeff=mo_coeff, &
                          mo_coeff_b=mo_coeff_b, occupation_numbers=occupation_numbers)
-         CALL dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin)%matrix, mo_coeff_b, &
+         CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin)%matrix, mo_coeff_b, &
                              0.0_dp, mo_derivs(ispin)%matrix)
 
          IF (dft_control%restricted) THEN
@@ -1013,7 +1014,7 @@ CONTAINS
             CALL dbcsr_create(mo_derivs2_tmp1, template=mo_coeff_b)
 
             ! calculate beta derivatives
-            CALL dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(2)%matrix, mo_coeff_b, 0.0_dp, mo_derivs2_tmp1)
+            CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(2)%matrix, mo_coeff_b, 0.0_dp, mo_derivs2_tmp1)
 
             ! create larger matrix with alpha_nmo columns
             CALL dbcsr_create(mo_derivs2_tmp2, template=mo_derivs(1)%matrix)

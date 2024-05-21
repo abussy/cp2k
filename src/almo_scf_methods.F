@@ -13,6 +13,7 @@
 !> \author Rustam Z Khaliullin
 ! **************************************************************************************************
 MODULE almo_scf_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE almo_scf_types,                  ONLY: almo_scf_env_type,&
                                               almo_scf_history_type
    USE bibliography,                    ONLY: Kolafa2004,&
@@ -172,7 +173,7 @@ CONTAINS
          !matrix_tmp1 = create NxO, full
          CALL dbcsr_create(matrix_tmp1, &
                            template=almo_scf_env%matrix_t(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_ks(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_ks(ispin), &
                              almo_scf_env%matrix_t(ispin), &
                              0.0_dp, matrix_tmp1, &
                              filter_eps=eps_multiply)
@@ -182,14 +183,14 @@ CONTAINS
          !matrix_tmp2 = create NxO, full
          CALL dbcsr_create(matrix_tmp2, &
                            template=almo_scf_env%matrix_t(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
                              almo_scf_env%matrix_sigma_inv(ispin), &
                              0.0_dp, matrix_tmp2, &
                              filter_eps=eps_multiply)
 
          ! 3. TMP1=S.T
          !    Cost: NOn
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s(1), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s(1), &
                              almo_scf_env%matrix_t(ispin), &
                              0.0_dp, matrix_tmp1, &
                              filter_eps=eps_multiply)
@@ -200,7 +201,7 @@ CONTAINS
          CALL dbcsr_create(matrix_tmp4, &
                            template=almo_scf_env%matrix_s(1), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp2, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp2, &
                              matrix_tmp1, &
                              0.0_dp, matrix_tmp4, &
                              filter_eps=eps_multiply)
@@ -226,7 +227,7 @@ CONTAINS
          CALL dbcsr_create(matrix_tmp3, &
                            template=almo_scf_env%matrix_t(ispin), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              matrix_tmp4, &
                              almo_scf_env%matrix_t(ispin), &
                              0.0_dp, matrix_tmp3, &
@@ -239,7 +240,7 @@ CONTAINS
          CALL dbcsr_create(matrix_tmp6, &
                            template=almo_scf_env%matrix_t(ispin), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              matrix_tmp3, &
                              almo_scf_env%matrix_sigma_inv(ispin), &
                              0.0_dp, matrix_tmp6, &
@@ -274,7 +275,7 @@ CONTAINS
          CALL dbcsr_create(matrix_tmp4, &
                            template=almo_scf_env%matrix_s(1), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                              matrix_tmp3, &
                              almo_scf_env%matrix_t(ispin), &
                              0.0_dp, matrix_tmp4, &
@@ -307,7 +308,7 @@ CONTAINS
          CALL dbcsr_create(matrix_tmp5, &
                            template=almo_scf_env%matrix_s(1), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                              matrix_tmp6, &
                              matrix_tmp1, &
                              0.0_dp, matrix_tmp5, &
@@ -363,7 +364,7 @@ CONTAINS
          CALL dbcsr_create(matrix_tmp7, &
                            template=almo_scf_env%matrix_sigma_blk(ispin), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              almo_scf_env%matrix_t(ispin), &
                              matrix_tmp2, &
                              0.0_dp, matrix_tmp7, &
@@ -374,7 +375,7 @@ CONTAINS
                            template=almo_scf_env%matrix_sigma_blk(ispin), &
                            matrix_type=dbcsr_type_symmetric)
          CALL dbcsr_copy(matrix_tmp8, almo_scf_env%matrix_sigma_blk(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              almo_scf_env%matrix_sigma_inv(ispin), &
                              matrix_tmp7, &
                              0.0_dp, matrix_tmp8, &
@@ -390,7 +391,7 @@ CONTAINS
          CALL dbcsr_copy(matrix_tmp9, matrix_tmp1, keep_sparsity=.TRUE.)
 
          ! 14. TMP3=TMP9.TMP8=[S.T]_xx.[SigInv.tr(T).KS.T.SigInv]_xx
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              matrix_tmp9, &
                              matrix_tmp8, &
                              0.0_dp, matrix_tmp3, &
@@ -425,7 +426,7 @@ CONTAINS
          !! err_blk = tmp_err.tr(T_blk)
          !CALL dbcsr_copy(almo_scf_env%matrix_err_blk(ispin),&
          !        almo_scf_env%matrix_s_blk_sqrt(1))
-         !CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp_err,&
+         !CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp_err,&
          !        almo_scf_env%matrix_t(ispin),&
          !        0.0_dp, almo_scf_env%matrix_err_blk(ispin),&
          !        retain_sparsity=.TRUE.,&
@@ -436,12 +437,12 @@ CONTAINS
          !CALL dbcsr_init(matrix_tmp_err)
          !CALL dbcsr_create(matrix_tmp_err,&
          !        template=almo_scf_env%matrix_err_blk(ispin))
-         !CALL dbcsr_multiply("N", "N", 1.0_dp,&
+         !CALL cp_dbcsr_multiply("N", "N", 1.0_dp,&
          !        almo_scf_env%matrix_err_blk(ispin),&
          !        almo_scf_env%matrix_s_blk_sqrt(1),&
          !        0.0_dp, matrix_tmp_err,&
          !        filter_eps=eps_multiply)
-         !CALL dbcsr_multiply("N", "N", 1.0_dp,&
+         !CALL cp_dbcsr_multiply("N", "N", 1.0_dp,&
          !        almo_scf_env%matrix_s_blk_sqrt_inv(1),&
          !        matrix_tmp_err,&
          !        0.0_dp, almo_scf_env%matrix_err_blk(ispin),&
@@ -501,7 +502,7 @@ CONTAINS
          !matrix_tmp1 = create NxO, full
          CALL dbcsr_create(matrix_tmp1, &
                            template=almo_scf_env%matrix_t(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_ks(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_ks(ispin), &
                              almo_scf_env%matrix_t_blk(ispin), &
                              0.0_dp, matrix_tmp1, &
                              filter_eps=eps_multiply)
@@ -510,7 +511,7 @@ CONTAINS
          !matrix_tmp2 = create NxO, full
          CALL dbcsr_create(matrix_tmp2, &
                            template=almo_scf_env%matrix_t(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
                              almo_scf_env%matrix_sigma_inv(ispin), &
                              0.0_dp, matrix_tmp2, &
                              filter_eps=eps_multiply)
@@ -525,7 +526,7 @@ CONTAINS
 
          ! 3. TMP1=S.T_blk
          !    Cost: NOn
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s(1), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s(1), &
                              almo_scf_env%matrix_t_blk(ispin), &
                              0.0_dp, matrix_tmp1, &
                              filter_eps=eps_multiply)
@@ -537,7 +538,7 @@ CONTAINS
                            template=almo_scf_env%matrix_s_blk(1), &
                            matrix_type=dbcsr_type_no_symmetry)
          CALL dbcsr_copy(matrix_tmp4, almo_scf_env%matrix_s_blk(1))
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp2, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp2, &
                              matrix_tmp1, &
                              0.0_dp, matrix_tmp4, &
                              retain_sparsity=.TRUE., &
@@ -566,7 +567,7 @@ CONTAINS
          CALL dbcsr_create(matrix_tmp3, &
                            template=almo_scf_env%matrix_sigma_inv(ispin), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              almo_scf_env%matrix_t_blk(ispin), &
                              matrix_tmp2, &
                              0.0_dp, matrix_tmp3, &
@@ -578,7 +579,7 @@ CONTAINS
          CALL dbcsr_create(matrix_tmp6, &
                            template=almo_scf_env%matrix_sigma_inv(ispin), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              almo_scf_env%matrix_sigma_inv(ispin), &
                              matrix_tmp3, &
                              0.0_dp, matrix_tmp6, &
@@ -590,7 +591,7 @@ CONTAINS
          CALL dbcsr_release(matrix_tmp3)
          CALL dbcsr_create(matrix_tmp3, &
                            template=almo_scf_env%matrix_t(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
                              matrix_tmp6, &
                              0.0_dp, matrix_tmp3, &
                              filter_eps=eps_multiply)
@@ -621,7 +622,7 @@ CONTAINS
          ! err_blk = tmp_err.tr(T_blk)
          CALL dbcsr_copy(almo_scf_env%matrix_err_blk(ispin), &
                          almo_scf_env%matrix_s_blk_sqrt(1))
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp_err, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp_err, &
                              almo_scf_env%matrix_t_blk(ispin), &
                              0.0_dp, almo_scf_env%matrix_err_blk(ispin), &
                              retain_sparsity=.TRUE., &
@@ -631,12 +632,12 @@ CONTAINS
          ! err_blk = (S_blk^-1/2).err_blk.(S_blk^1/2)
          CALL dbcsr_create(matrix_tmp_err, &
                            template=almo_scf_env%matrix_err_blk(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              almo_scf_env%matrix_err_blk(ispin), &
                              almo_scf_env%matrix_s_blk_sqrt(1), &
                              0.0_dp, matrix_tmp_err, &
                              filter_eps=eps_multiply)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              almo_scf_env%matrix_s_blk_sqrt_inv(1), &
                              matrix_tmp_err, &
                              0.0_dp, almo_scf_env%matrix_err_blk(ispin), &
@@ -666,7 +667,7 @@ CONTAINS
          !10. KS_blk=KS_blk+TMP3.tr(TMP1)=
          !          =KS_blk+S.T_blk.SigInv.tr.(T_blk).KS.T_blk.SigInv.tr(T_blk).S
          !    Cost: NnO
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp3, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp3, &
                              matrix_tmp1, &
                              1.0_dp, almo_scf_env%matrix_ks_blk(ispin), &
                              retain_sparsity=.TRUE., &
@@ -694,7 +695,7 @@ CONTAINS
          CALL dbcsr_copy(matrix_tmp8, almo_scf_env%matrix_t_blk(ispin))
          CALL dbcsr_copy(matrix_tmp8, matrix_tmp1, keep_sparsity=.TRUE.)
          CALL dbcsr_release(matrix_tmp1)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp7, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp7, &
                              matrix_tmp8, &
                              0.0_dp, matrix_tmp4, &
                              filter_eps=eps_multiply, &
@@ -714,7 +715,7 @@ CONTAINS
          !     Cost: Nnn
          CALL dbcsr_copy(matrix_tmp7, matrix_tmp2, keep_sparsity=.TRUE.)
          CALL dbcsr_release(matrix_tmp2)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp7, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp7, &
                              matrix_tmp8, &
                              0.0_dp, matrix_tmp4, &
                              retain_sparsity=.TRUE., &
@@ -732,7 +733,7 @@ CONTAINS
 
          ! 17. TMP10_blk=TMP8_blk.TMP9_blk
          !    Cost: Noo
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp8, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp8, &
                              matrix_tmp9, &
                              0.0_dp, matrix_tmp7, &
                              retain_sparsity=.TRUE., &
@@ -741,7 +742,7 @@ CONTAINS
 
          ! 18. KS_blk=TMP7_blk.tr(TMP8_blk)
          !    Cost: Nno
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp7, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp7, &
                              matrix_tmp8, &
                              1.0_dp, almo_scf_env%matrix_ks_blk(ispin), &
                              retain_sparsity=.TRUE., &
@@ -944,10 +945,10 @@ CONTAINS
                            matrix_type=dbcsr_type_no_symmetry)
 
          ! convert blocks to the orthogonal basis set
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_ks_blk(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_ks_blk(ispin), &
                              almo_scf_env%matrix_s_blk_sqrt_inv(1), 0.0_dp, matrix_tmp, &
                              filter_eps=almo_scf_env%eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_blk_sqrt_inv(1), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_blk_sqrt_inv(1), &
                              matrix_tmp, 0.0_dp, matrix_ks_blk_orthog, &
                              filter_eps=almo_scf_env%eps_filter)
 
@@ -1079,10 +1080,10 @@ CONTAINS
          CALL dbcsr_release(matrix_ks_blk_orthog)
 
          ! convert orbitals to the AO basis set (from orthogonalized AOs)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_blk_sqrt_inv(1), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_blk_sqrt_inv(1), &
                              matrix_t_blk_orthog, 0.0_dp, almo_scf_env%matrix_t_blk(ispin), &
                              filter_eps=almo_scf_env%eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_blk_sqrt_inv(1), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_blk_sqrt_inv(1), &
                              matrix_v_blk_orthog, 0.0_dp, almo_scf_env%matrix_v_full_blk(ispin), &
                              filter_eps=almo_scf_env%eps_filter)
 
@@ -1288,12 +1289,12 @@ CONTAINS
 
             ! use current ALMOs in matrix_t_blk and project them onto the blocked dm
             ! compute T_new = R_blk S_blk T_random
-            CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_blk(1), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_blk(1), &
                                 almo_scf_env%matrix_t_blk(ispin), &
                                 0.0_dp, matrix_t_blk_tmp, &
                                 filter_eps=almo_scf_env%eps_filter)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 almo_scf_env%matrix_p_blk(ispin), matrix_t_blk_tmp, &
                                 0.0_dp, almo_scf_env%matrix_t_blk(ispin), &
                                 filter_eps=almo_scf_env%eps_filter)
@@ -1453,12 +1454,12 @@ CONTAINS
                         matrix_type=dbcsr_type_no_symmetry)
 
       ! TMP=metric*ket
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           metric, ket, 0.0_dp, tmp, &
                           filter_eps=eps_filter)
 
       ! OVERLAP=tr(bra)*TMP
-      CALL dbcsr_multiply("T", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                           bra, tmp, 0.0_dp, overlap, &
                           retain_sparsity=local_retain_sparsity, &
                           filter_eps=eps_filter)
@@ -1576,7 +1577,7 @@ CONTAINS
                         template=ket, &
                         matrix_type=dbcsr_type_no_symmetry)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           ket, &
                           matrix_sigma_blk_sqrt_inv, &
                           0.0_dp, matrix_t_blk_tmp, &
@@ -1687,7 +1688,7 @@ CONTAINS
 
       IF (orthog_orbs) THEN
 
-         CALL dbcsr_multiply("N", "T", 1.0_dp, t, t, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, t, t, &
                              0.0_dp, p, filter_eps=eps_filter)
 
       ELSE
@@ -1695,11 +1696,11 @@ CONTAINS
          CALL dbcsr_create(t_tmp, template=t)
 
          ! TMP=S.T
-         CALL dbcsr_multiply("N", "N", 1.0_dp, s, t, 0.0_dp, t_tmp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, s, t, 0.0_dp, t_tmp, &
                              filter_eps=eps_filter)
 
          ! Sig=tr(T).TMP - get MO overlap
-         CALL dbcsr_multiply("T", "N", 1.0_dp, t, t_tmp, 0.0_dp, sigma, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, t, t_tmp, 0.0_dp, sigma, &
                              filter_eps=eps_filter)
 
          !! If smearing ALMO is requested, apply correction of the occupation-rescaling trick
@@ -1764,11 +1765,11 @@ CONTAINS
          CALL set_zero_electron_blocks_in_mo_mo_matrix(sigma_inv, nocc_of_domain, 0.0_dp)
 
          ! TMP=T.SigInv
-         CALL dbcsr_multiply("N", "N", 1.0_dp, t, sigma_inv, 0.0_dp, t_tmp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, t, sigma_inv, 0.0_dp, t_tmp, &
                              filter_eps=eps_filter)
 
          ! P=TMP.tr(T_blk)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, t_tmp, t, 0.0_dp, p, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, t_tmp, t, 0.0_dp, p, &
                              filter_eps=eps_filter)
 
          CALL dbcsr_release(t_tmp)
@@ -1872,14 +1873,14 @@ CONTAINS
 
       ! =S*PSI_proj
       CALL dbcsr_create(tmp_no, template=psi_projector)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           metric, psi_projector, &
                           0.0_dp, tmp_no, &
                           filter_eps=eps_filter)
 
       ! =tr(S.PSI_proj)*PSI_in
       CALL dbcsr_create(tmp_ov, template=proj_in_template)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                           tmp_no, psi_in, &
                           0.0_dp, tmp_ov, &
                           filter_eps=eps_filter)
@@ -1900,7 +1901,7 @@ CONTAINS
             CALL dbcsr_create(tmp_sig, &
                               template=sig_inv_template, &
                               matrix_type=dbcsr_type_no_symmetry)
-            CALL dbcsr_multiply("T", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                 psi_projector, tmp_no, 0.0_dp, tmp_sig, &
                                 filter_eps=eps_filter)
             CALL dbcsr_create(tmp_sig_inv, &
@@ -1910,7 +1911,7 @@ CONTAINS
                                   threshold=eps_filter)
             CALL dbcsr_release(tmp_sig)
          END IF
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              tmp_sig_inv, tmp_ov, 0.0_dp, tmp_ov2, &
                              filter_eps=eps_filter)
          CALL dbcsr_release(tmp_sig_inv)
@@ -1920,7 +1921,7 @@ CONTAINS
       CALL dbcsr_release(tmp_no)
 
       ! =PSI_proj*TMP_OV
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           psi_projector, tmp_ov, 0.0_dp, psi_out, &
                           filter_eps=eps_filter)
       CALL dbcsr_release(tmp_ov)
@@ -1961,7 +1962,7 @@ CONTAINS
 !    CALL dbcsr_init(tmp_on)
 !    CALL dbcsr_create(tmp_on,&
 !            template=almo_scf_env%matrix_t_tr(ispin))
-!    CALL dbcsr_multiply("T","N",1.0_dp,&
+!    CALL cp_dbcsr_multiply("T","N",1.0_dp,&
 !            almo_scf_env%matrix_t_blk(ispin),&
 !            almo_scf_env%matrix_s(1),&
 !            0.0_dp,tmp_on,&
@@ -1970,7 +1971,7 @@ CONTAINS
 !    ! =tr(T_blk).S*V_in
 !    CALL dbcsr_init(tmp_ov)
 !    CALL dbcsr_create(tmp_ov,template=ov_template)
-!    CALL dbcsr_multiply("N","N",1.0_dp,&
+!    CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !            tmp_on,v_in,0.0_dp,tmp_ov,&
 !            filter_eps=almo_scf_env%eps_filter)
 !    CALL dbcsr_release(tmp_on)
@@ -1978,14 +1979,14 @@ CONTAINS
 !    ! =SigmaInv*Sigma_OV
 !    CALL dbcsr_init(tmp_ov2)
 !    CALL dbcsr_create(tmp_ov2,template=ov_template)
-!    CALL dbcsr_multiply("N","N",1.0_dp,&
+!    CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !            almo_scf_env%matrix_sigma_inv(ispin),&
 !            tmp_ov,0.0_dp,tmp_ov2,&
 !            filter_eps=almo_scf_env%eps_filter)
 !    CALL dbcsr_release(tmp_ov)
 !
 !    ! =T_blk*SigmaInv.Sigma_OV
-!    CALL dbcsr_multiply("N","N",1.0_dp,&
+!    CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !            almo_scf_env%matrix_t_blk(ispin),&
 !            tmp_ov2,0.0_dp,v_out,&
 !            filter_eps=almo_scf_env%eps_filter)
@@ -2055,7 +2056,7 @@ CONTAINS
 
          CALL dbcsr_create(tmp1, template=X, &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, t2, t1, 0.0_dp, tmp1, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, t2, t1, 0.0_dp, tmp1, &
                              filter_eps=eps_filter)
          frob_matrix_base = dbcsr_frobenius_norm(tmp1)
          CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
@@ -2064,7 +2065,7 @@ CONTAINS
          CALL dbcsr_release(tmp1)
       END IF
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, delta, t2, 0.0_dp, U, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, delta, t2, 0.0_dp, U, &
                           filter_eps=eps_filter)
       CALL dbcsr_add(U, t2, 1.0_dp, 1.0_dp)
 
@@ -2072,7 +2073,7 @@ CONTAINS
 
          CALL dbcsr_create(tmp1, template=X, &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, U, U, 0.0_dp, tmp1, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, U, U, 0.0_dp, tmp1, &
                              filter_eps=eps_filter)
          frob_matrix_base = dbcsr_frobenius_norm(tmp1)
          CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
@@ -2643,11 +2644,11 @@ CONTAINS
                         template=matrix_t, &
                         matrix_type=dbcsr_type_no_symmetry)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s, matrix_t, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s, matrix_t, &
                           0.0_dp, m_tmp_no_1, filter_eps=filter_eps)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, m_tmp_no_1, matrix_sigma_inv, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, m_tmp_no_1, matrix_sigma_inv, &
                           0.0_dp, m_tmp_no_2, filter_eps=filter_eps)
-      CALL dbcsr_multiply("N", "T", 1.0_dp, m_tmp_no_2, m_tmp_no_1, &
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, m_tmp_no_2, m_tmp_no_1, &
                           0.0_dp, matrix_r, filter_eps=filter_eps)
 
       CALL dbcsr_release(m_tmp_no_1)
@@ -3405,7 +3406,7 @@ CONTAINS
                ! this is done to keep orbitals phase (i.e. sign) the same as in
                ! t0. if this is not done then subtracting t0 on the next step
                ! will produce a terrible guess and extrapolation will fail
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    xalmo_history%matrix_p_up_down(ispin, istore), &
                                    m_t0(ispin), &
                                    0.0_dp, m_extrapolated, &

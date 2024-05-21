@@ -10,6 +10,7 @@
 !> \author Florian Schiffmann (02.09)
 ! **************************************************************************************************
 MODULE rt_propagator_init
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
 
    USE arnoldi_api,                     ONLY: arnoldi_extremal
    USE cp_control_types,                ONLY: dft_control_type,&
@@ -350,9 +351,9 @@ CONTAINS
       CALL matrix_sqrt_Newton_Schulz(s_half, s_minus_half, s_mat(1)%matrix, rtp%filter_eps, &
                                      rtp%newton_schulz_order, rtp%lanzcos_threshold, rtp%lanzcos_max_iter)
       DO ispin = 1, SIZE(matrix_ks)
-         CALL dbcsr_multiply("N", "N", t, matrix_ks(ispin)%matrix, s_minus_half, zero, tmp, &
+         CALL cp_dbcsr_multiply("N", "N", t, matrix_ks(ispin)%matrix, s_minus_half, zero, tmp, &
                              filter_eps=rtp%filter_eps)
-         CALL dbcsr_multiply("N", "N", one, s_minus_half, tmp, zero, tmp2, &
+         CALL cp_dbcsr_multiply("N", "N", one, s_minus_half, tmp, zero, tmp2, &
                              filter_eps=rtp%filter_eps)
          CALL arnoldi_extremal(tmp2, max_ev, min_ev, threshold=rtp%lanzcos_threshold, &
                                max_iter=rtp%lanzcos_max_iter, converged=converged)

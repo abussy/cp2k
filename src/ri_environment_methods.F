@@ -16,6 +16,7 @@
 !>          Dorothea Golze
 ! **************************************************************************************************
 MODULE ri_environment_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE arnoldi_api,                     ONLY: arnoldi_conjugate_gradient
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind_set
@@ -238,7 +239,7 @@ CONTAINS
          END DO
          CALL dbcsr_scale_by_vector(emat, eval, side='right')
          CALL dbcsr_create(lri_env%ri_sinv(1)%matrix, template=lri_env%ri_smat(1)%matrix)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, emat, emat, 0.0_dp, lri_env%ri_sinv(1)%matrix)
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, emat, emat, 0.0_dp, lri_env%ri_sinv(1)%matrix)
          DEALLOCATE (eval)
          CALL dbcsr_release(emat)
       CASE ("AINV")

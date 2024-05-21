@@ -16,6 +16,7 @@
 !> - Generalized sm_fm_mulitply for matrices w/ different row/col block size (A. Bussy, 11.2018)
 ! **************************************************************************************************
 MODULE cp_dbcsr_operations
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE mathlib, ONLY: lcm, gcd
    USE cp_blacs_env, ONLY: cp_blacs_env_type
    USE cp_cfm_types, ONLY: cp_cfm_type
@@ -616,7 +617,7 @@ CONTAINS
             CALL copy_fm_to_dbcsr(fm_out, out)
 
          CALL timeset(routineN//'_core', timing_handle_mult)
-         CALL dbcsr_multiply("N", "N", my_alpha, matrix, in, my_beta, out, &
+         CALL cp_dbcsr_multiply("N", "N", my_alpha, matrix, in, my_beta, out, &
                              last_column=ncol)
          CALL timestop(timing_handle_mult)
 
@@ -767,33 +768,33 @@ CONTAINS
          IF (PRESENT(matrix_g)) THEN
             IF (my_symmetry_mode == 1) THEN
                ! Symmetric mode
-               CALL dbcsr_multiply("N", "T", 0.5_dp*my_alpha, mat_v, mat_g, &
+               CALL cp_dbcsr_multiply("N", "T", 0.5_dp*my_alpha, mat_v, mat_g, &
                                    1.0_dp, sparse_matrix, &
                                    retain_sparsity=my_keep_sparsity, &
                                    last_k=ncol)
-               CALL dbcsr_multiply("N", "T", 0.5_dp*my_alpha, mat_g, mat_v, &
+               CALL cp_dbcsr_multiply("N", "T", 0.5_dp*my_alpha, mat_g, mat_v, &
                                    1.0_dp, sparse_matrix, &
                                    retain_sparsity=my_keep_sparsity, &
                                    last_k=ncol)
             ELSE IF (my_symmetry_mode == -1) THEN
                ! Skewsymmetric mode
-               CALL dbcsr_multiply("N", "T", 0.5_dp*my_alpha, mat_v, mat_g, &
+               CALL cp_dbcsr_multiply("N", "T", 0.5_dp*my_alpha, mat_v, mat_g, &
                                    1.0_dp, sparse_matrix, &
                                    retain_sparsity=my_keep_sparsity, &
                                    last_k=ncol)
-               CALL dbcsr_multiply("N", "T", -0.5_dp*my_alpha, mat_g, mat_v, &
+               CALL cp_dbcsr_multiply("N", "T", -0.5_dp*my_alpha, mat_g, mat_v, &
                                    1.0_dp, sparse_matrix, &
                                    retain_sparsity=my_keep_sparsity, &
                                    last_k=ncol)
             ELSE
                ! Normal mode
-               CALL dbcsr_multiply("N", "T", my_alpha, mat_v, mat_g, &
+               CALL cp_dbcsr_multiply("N", "T", my_alpha, mat_v, mat_g, &
                                    1.0_dp, sparse_matrix, &
                                    retain_sparsity=my_keep_sparsity, &
                                    last_k=ncol)
             END IF
          ELSE
-            CALL dbcsr_multiply("N", "T", my_alpha, mat_v, mat_v, &
+            CALL cp_dbcsr_multiply("N", "T", my_alpha, mat_v, mat_v, &
                                 1.0_dp, sparse_matrix, &
                                 retain_sparsity=my_keep_sparsity, &
                                 last_k=ncol)

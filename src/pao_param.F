@@ -10,6 +10,7 @@
 !> \author Ole Schuett
 ! **************************************************************************************************
 MODULE pao_param
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE dbcsr_api,                       ONLY: dbcsr_copy,&
                                               dbcsr_frobenius_norm,&
                                               dbcsr_multiply,&
@@ -234,7 +235,7 @@ CONTAINS
       IF (pao%precondition) THEN
          !TODO: multiplying a matrix into itself while retaining sparsity seems to be broken
          CALL dbcsr_copy(matrix_tmp, pao%matrix_X)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_precon, matrix_tmp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_precon, matrix_tmp, &
                              0.0_dp, pao%matrix_X, retain_sparsity=.TRUE.)
          CALL dbcsr_release(matrix_tmp)
       END IF

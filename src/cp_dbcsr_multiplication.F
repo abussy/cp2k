@@ -90,13 +90,6 @@ CONTAINS
                              first_row, last_row, first_column, last_column, first_k, last_k, &
                              retain_sparsity, filter_eps, flop) 
 
-      ELSE IF (dbcsr_get_data_type(matrix_a) .NE. dbcsr_type_real_8) THEN
-
-         !We only offload double precision floats to DBT
-         CALL dbcsr_multiply(transa, transb, alpha, matrix_a, matrix_b, beta, matrix_c, &
-                             first_row, last_row, first_column, last_column, first_k, last_k, &
-                             retain_sparsity, filter_eps, flop)
-
       ELSE
 
          CALL dbt_create(matrix_a, tensor_a)
@@ -105,6 +98,7 @@ CONTAINS
 
          CALL dbt_copy_matrix_to_tensor(matrix_a, tensor_a)
          CALL dbt_copy_matrix_to_tensor(matrix_b, tensor_b)
+         IF (beta > EPSILON(0.0_dp)) CALL dbt_copy_matrix_to_tensor(matrix_c, tensor_c) !TODO: only if beta != 0.0
 
          c1(1) = 2
          nc1(1) = 1
@@ -135,5 +129,8 @@ CONTAINS
       END IF
       CALL timestop(handle)
    END SUBROUTINE cp_dbcsr_multiply
+
+! **************************************************************************************************
+
 
 END MODULE cp_dbcsr_multiplication

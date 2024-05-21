@@ -11,6 +11,7 @@
 !>       2006.03 Moved here from qs_scf.F [Joost VandeVondele]
 ! **************************************************************************************************
 MODULE qs_initial_guess
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atom_kind_orbitals,              ONLY: calculate_atomic_orbitals
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind,&
@@ -969,7 +970,7 @@ CONTAINS
                !
                ! S*C
                CALL dbcsr_copy(mo_tmp_dbcsr, mo_dbcsr, name="mo_tmp")
-               CALL dbcsr_multiply("N", "N", 1.0_dp, s_sparse(1)%matrix, mo_dbcsr, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, s_sparse(1)%matrix, mo_dbcsr, &
                                    0.0_dp, mo_tmp_dbcsr, &
                                    retain_sparsity=.TRUE.)
                !CALL dbcsr_verify_matrix(mo_tmp_dbcsr)
@@ -985,7 +986,7 @@ CONTAINS
                ! P*SC
                ! the destroy is needed for the moment to avoid memory leaks !
                ! This one is not needed because _destroy takes care of zeroing.
-               CALL dbcsr_multiply("N", "N", 1.0_dp, p_rmpv(ispin)%matrix, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, p_rmpv(ispin)%matrix, &
                                    mo_tmp_dbcsr, 0.0_dp, mo_dbcsr)
                IF (.FALSE.) CALL dbcsr_verify_matrix(mo_dbcsr)
                checksum = dbcsr_checksum(mo_dbcsr)

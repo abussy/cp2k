@@ -5,6 +5,7 @@
 !   SPDX-License-Identifier: GPL-2.0-or-later                                                      !
 !--------------------------------------------------------------------------------------------------!
 MODULE qs_tddfpt2_soc
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_type
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
@@ -532,12 +533,12 @@ CONTAINS
       !Now do the singlet-triplet SOC
       !start by computing the singlet-triplet overlap
       ! <S|T>
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                           matrix_s(1)%matrix, &
                           dbcsr_tp, 0.0_dp, &
                           dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                           dbcsr_sg, &
                           dbcsr_work, &
                           0.0_dp, dbcsr_ovlp, &
@@ -545,12 +546,12 @@ CONTAINS
 
       !singlet-triplet with Ms=+-1, imaginary part
       ! First precalculate <S|H_x|T+-1>
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                           orb_soc_x, &
                           dbcsr_tp, 0.0_dp, &
                           dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                           dbcsr_sg, &
                           dbcsr_work, 0.0_dp, &
                           dbcsr_prod, &
@@ -604,11 +605,11 @@ CONTAINS
 
        !!singlet-triplet with Ms=+-1, real part
        !! Precompute <S|H_y|T>
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                           orb_soc_y, dbcsr_tp, &
                           0.0_dp, dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                           dbcsr_sg, dbcsr_work, &
                           0.0_dp, dbcsr_prod, &
                           filter_eps=eps_filter)
@@ -657,11 +658,11 @@ CONTAINS
       END IF
 
       !singlet-triplet with Ms=0, purely imaginary
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                           orb_soc_z, dbcsr_tp, &
                           0.0_dp, dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                           dbcsr_sg, dbcsr_work, &
                           0.0_dp, dbcsr_prod, &
                           filter_eps=eps_filter)
@@ -697,22 +698,22 @@ CONTAINS
 
       !Now the triplet-triplet SOC
       !start by computing the overlap
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                           matrix_s(1)%matrix, &
                           dbcsr_tp, 0.0_dp, &
                           dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                           dbcsr_tp, dbcsr_work, &
                           0.0_dp, dbcsr_ovlp, &
                           filter_eps=eps_filter)
 
       !Ms=0 to Ms=+-1 SOC, imaginary part
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                           orb_soc_x, dbcsr_tp, &
                           0.0_dp, dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                           dbcsr_tp, dbcsr_work, &
                           0.0_dp, dbcsr_prod, &
                           filter_eps=eps_filter)
@@ -762,11 +763,11 @@ CONTAINS
       END IF
 
       !Ms=0 to Ms=+-1 SOC, real part
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                           orb_soc_y, dbcsr_tp, &
                           0.0_dp, dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                           dbcsr_tp, dbcsr_work, &
                           0.0_dp, dbcsr_prod, &
                           filter_eps=eps_filter)
@@ -814,11 +815,11 @@ CONTAINS
       END IF
 
       !Ms=1 to Ms=1 and Ms=-1 to Ms=-1 SOC, purely imaginary
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                           orb_soc_z, dbcsr_tp, &
                           0.0_dp, dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                           dbcsr_tp, dbcsr_work, &
                           0.0_dp, dbcsr_prod, &
                           filter_eps=eps_filter)
@@ -1687,11 +1688,11 @@ CONTAINS
 
          ! do the singlet-singlet components
          !start with the overlap
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                              matrix_s(1)%matrix, dbcsr_sg, &
                              0.0_dp, dbcsr_work, &
                              filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                              dbcsr_sg, dbcsr_work, &
                              0.0_dp, dbcsr_ovlp, &
                              filter_eps=eps_filter)
@@ -1700,11 +1701,11 @@ CONTAINS
             CALL dip_vel_op(soc_env, qs_env, evects_sing, dbcsr_prod, i, .FALSE.)
          ELSE
             !then the operator in the LR orbital basis
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                                 ao_op_i, dbcsr_sg, &
                                 0.0_dp, dbcsr_work, &
                                 filter_eps=eps_filter)
-            CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+            CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                                 dbcsr_sg, dbcsr_work, &
                                 0.0_dp, dbcsr_prod, &
                                 filter_eps=eps_filter)
@@ -1732,12 +1733,12 @@ CONTAINS
 
          ! compute the triplet-triplet components
          !the overlap
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                              matrix_s(1)%matrix, &
                              dbcsr_tp, 0.0_dp, &
                              dbcsr_work, &
                              filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                              dbcsr_tp, dbcsr_work, &
                              0.0_dp, dbcsr_ovlp, &
                              filter_eps=eps_filter)
@@ -1746,11 +1747,11 @@ CONTAINS
          IF (vel_rep) THEN
             CALL dip_vel_op(soc_env, qs_env, evects_trip, dbcsr_prod, i, .TRUE.)
          ELSE
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, &
                                 ao_op_i, dbcsr_tp, &
                                 0.0_dp, dbcsr_work, &
                                 filter_eps=eps_filter)
-            CALL dbcsr_multiply('T', 'N', 1.0_dp, &
+            CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, &
                                 dbcsr_tp, dbcsr_work, &
                                 0.0_dp, dbcsr_prod, &
                                 filter_eps=eps_filter)

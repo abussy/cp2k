@@ -12,6 +12,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE minbas_wfn_analysis
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_charges,                  ONLY: print_atomic_charges,&
                                               print_bond_orders
    USE atomic_kind_types,               ONLY: atomic_kind_type
@@ -227,17 +228,17 @@ CONTAINS
          DO ispin = 1, nspin
             CALL dbcsr_create(smao, name="S*QM", template=mao_coef(1)%matrix)
             smat => matrix_s(1, 1)%matrix
-            CALL dbcsr_multiply("N", "N", 1.0_dp, smat, quambo(ispin)%matrix, 0.0_dp, smao)
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, smat, quambo(ispin)%matrix, 0.0_dp, smao)
             ! calculate atomic extend of basis
             CALL pm_extend(quambo(ispin)%matrix, smao, ecount(:, :, ispin))
             CALL dbcsr_create(sinv, name="QM*S*QM", template=sqmat(ispin)%matrix)
-            CALL dbcsr_multiply("T", "N", 1.0_dp, quambo(ispin)%matrix, smao, 0.0_dp, sqmat(ispin)%matrix)
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, quambo(ispin)%matrix, smao, 0.0_dp, sqmat(ispin)%matrix)
             ! atomic MAO projection
             CALL project_mao(mao_coef(ispin)%matrix, smao, sqmat(ispin)%matrix, prmao(:, ispin))
             ! invert overlap
             CALL invert_Hotelling(sinv, sqmat(ispin)%matrix, 1.e-6_dp, silent=.TRUE.)
             CALL dbcsr_create(smaox, name="S*QM*SINV", template=smao)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, smao, sinv, 0.0_dp, smaox)
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, smao, sinv, 0.0_dp, smaox)
             CALL copy_dbcsr_to_fm(smaox, fm1)
             CALL get_mo_set(mos(ispin), mo_coeff=fm_mos, homo=homo)
             CALL parallel_gemm("T", "N", nmao, nmo, nao, 1.0_dp, fm1, fm_mos, 0.0_dp, fm2)
@@ -330,9 +331,9 @@ CONTAINS
             CALL dbcsr_create(spmat, name="SP", template=sqmat(1)%matrix, matrix_type=dbcsr_type_no_symmetry)
             filter_eps = 1.e-6_dp
             DO ispin = 1, nspin
-               CALL dbcsr_multiply("N", "N", 1.0_dp, pqmat(ispin)%matrix, sqmat(ispin)%matrix, 0.0_dp, psmat, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pqmat(ispin)%matrix, sqmat(ispin)%matrix, 0.0_dp, psmat, &
                                    filter_eps=filter_eps)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, sqmat(ispin)%matrix, pqmat(ispin)%matrix, 0.0_dp, spmat, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, sqmat(ispin)%matrix, pqmat(ispin)%matrix, 0.0_dp, spmat, &
                                    filter_eps=filter_eps)
                CALL compute_bond_order(psmat, spmat, border)
             END DO

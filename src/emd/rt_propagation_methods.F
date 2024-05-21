@@ -10,6 +10,7 @@
 !> \author Florian Schiffmann (02.09)
 ! **************************************************************************************************
 MODULE rt_propagation_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE bibliography,                    ONLY: Kolafa2004,&
                                               Kuhne2007,&
                                               cite_reference
@@ -430,7 +431,7 @@ CONTAINS
          re = ispin*2 - 1
          im = ispin*2
          CALL dbcsr_desymmetrize(matrix_ks(ispin)%matrix, matrix_ks_nosym)
-         CALL dbcsr_multiply("N", "N", one, S_inv, matrix_ks_nosym, zero, exp_H(im)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", one, S_inv, matrix_ks_nosym, zero, exp_H(im)%matrix, &
                              filter_eps=rtp%filter_eps)
          IF (.NOT. rtp_control%fixed_ions) THEN
             CALL get_rtp(rtp=rtp, SinvH=SinvH)
@@ -446,7 +447,7 @@ CONTAINS
             CALL dbcsr_set(matrix_ks_nosym, 0.0_dp)
             CALL dbcsr_desymmetrize(matrix_ks_im(ispin)%matrix, matrix_ks_nosym)
             ! - SinvH_imag is added to exp_H(re)%matrix
-            CALL dbcsr_multiply("N", "N", -one, S_inv, matrix_ks_nosym, zero, exp_H(re)%matrix, &
+            CALL cp_dbcsr_multiply("N", "N", -one, S_inv, matrix_ks_nosym, zero, exp_H(re)%matrix, &
                                 filter_eps=rtp%filter_eps)
             IF (.NOT. rtp_control%fixed_ions) THEN
                CALL get_rtp(rtp=rtp, SinvH_imag=SinvH_imag)
@@ -459,7 +460,7 @@ CONTAINS
       IF (.NOT. rtp_control%fixed_ions) THEN
          CALL get_rtp(rtp=rtp, B_mat=B_mat, SinvB=SinvB)
          CALL dbcsr_set(matrix_ks_nosym, 0.0_dp)
-         CALL dbcsr_multiply("N", "N", one, S_inv, B_mat, zero, matrix_ks_nosym, filter_eps=rtp%filter_eps)
+         CALL cp_dbcsr_multiply("N", "N", one, S_inv, B_mat, zero, matrix_ks_nosym, filter_eps=rtp%filter_eps)
          DO ispin = 1, SIZE(matrix_ks)
             re = ispin*2 - 1
             im = ispin*2
@@ -503,7 +504,7 @@ CONTAINS
          CALL get_rtp(rtp=rtp, S_half=S_half, S_minus_half=S_minus_half)
          CALL matrix_sqrt_Newton_Schulz(S_half, S_minus_half, s_mat(1)%matrix, rtp%filter_eps, &
                                         rtp%newton_schulz_order, rtp%lanzcos_threshold, rtp%lanzcos_max_iter)
-         CALL dbcsr_multiply("N", "N", one, S_minus_half, S_minus_half, zero, S_inv, &
+         CALL cp_dbcsr_multiply("N", "N", one, S_minus_half, S_minus_half, zero, S_inv, &
                              filter_eps=rtp%filter_eps)
       ELSE
          CALL dbcsr_copy(S_inv, s_mat(1)%matrix)
@@ -626,9 +627,9 @@ CONTAINS
          im = 2*ispin
          imax = MAX(max_iter, 1) !if max_iter is 0 then only the deviation from idempotency needs to be calculated
          DO i = 1, imax
-            CALL dbcsr_multiply("N", "N", one, P(re)%matrix, s_mat(1)%matrix, &
+            CALL cp_dbcsr_multiply("N", "N", one, P(re)%matrix, s_mat(1)%matrix, &
                                 zero, PS(re)%matrix, filter_eps=eps_small)
-            CALL dbcsr_multiply("N", "N", one, P(im)%matrix, s_mat(1)%matrix, &
+            CALL cp_dbcsr_multiply("N", "N", one, P(im)%matrix, s_mat(1)%matrix, &
                                 zero, PS(im)%matrix, filter_eps=eps_small)
             CALL cp_complex_dbcsr_gemm_3("N", "N", one, PS(re)%matrix, PS(im)%matrix, &
                                          P(re)%matrix, P(im)%matrix, zero, PSP(re)%matrix, PSP(im)%matrix, &

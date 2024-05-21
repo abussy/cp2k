@@ -12,6 +12,7 @@
 !> \author Ole Schuett
 ! **************************************************************************************************
 MODULE admm_dm_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_dm_types,                   ONLY: admm_dm_type,&
                                               mcweeny_history_type
    USE admm_types,                      ONLY: get_admm_env
@@ -165,7 +166,7 @@ CONTAINS
             ALLOCATE (admm_dm%matrix_A)
             CALL dbcsr_create(admm_dm%matrix_A, template=matrix_s_mixed(1)%matrix, matrix_type="N")
          END IF
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_aux_inv, matrix_s_mixed(1)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_aux_inv, matrix_s_mixed(1)%matrix, &
                              0.0_dp, admm_dm%matrix_A)
          CALL dbcsr_release(matrix_s_aux_inv)
       END IF
@@ -173,9 +174,9 @@ CONTAINS
       ! Calculate P_aux = A * P * A^T
       CALL dbcsr_create(matrix_tmp, template=admm_dm%matrix_A)
       DO ispin = 1, dft_control%nspins
-         CALL dbcsr_multiply("N", "N", 1.0_dp, admm_dm%matrix_A, rho_ao(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, admm_dm%matrix_A, rho_ao(ispin)%matrix, &
                              0.0_dp, matrix_tmp)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp, admm_dm%matrix_A, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp, admm_dm%matrix_A, &
                              0.0_dp, rho_ao_aux(ispin)%matrix)
       END DO
       CALL dbcsr_release(matrix_tmp)
@@ -297,9 +298,9 @@ CONTAINS
       CALL dbcsr_create(matrix_tmp, template=admm_dm%matrix_A, matrix_type="N")
 
       DO ispin = 1, dft_control%nspins
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_ks_merge(ispin)%matrix, admm_dm%matrix_A, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_ks_merge(ispin)%matrix, admm_dm%matrix_A, &
                              0.0_dp, matrix_tmp)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, admm_dm%matrix_A, matrix_tmp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, admm_dm%matrix_A, matrix_tmp, &
                              1.0_dp, matrix_ks(ispin)%matrix)
       END DO
 
@@ -397,10 +398,10 @@ CONTAINS
             CALL dbcsr_copy(history%m, matrix_p, name="P from McWeeny")
 
             ! calc PS and PSP
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p, matrix_s, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p, matrix_s, &
                                 0.0_dp, matrix_ps)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_ps, matrix_p, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_ps, matrix_p, &
                                 0.0_dp, matrix_psp)
 
             !test convergence
@@ -413,7 +414,7 @@ CONTAINS
 
             ! build next P matrix
             CALL dbcsr_copy(matrix_p, matrix_PSP, name="P from McWeeny")
-            CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_PS, matrix_PSP, &
+            CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_PS, matrix_PSP, &
                                 3.0_dp, matrix_p)
          END DO
          admm_dm%mcweeny_history(ispin)%p => history
@@ -510,29 +511,29 @@ CONTAINS
       CALL dbcsr_create(matrix_tmp, template=matrix_p, matrix_type="N")
       CALL dbcsr_create(matrix_sum, template=matrix_p, matrix_type="N")
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p, matrix_s, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p, matrix_s, &
                           0.0_dp, matrix_ps)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s, matrix_p, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s, matrix_p, &
                           0.0_dp, matrix_sp)
 
       !TODO: can we exploid more symmetry?
-      CALL dbcsr_multiply("N", "N", 3.0_dp, matrix_k, matrix_ps, &
+      CALL cp_dbcsr_multiply("N", "N", 3.0_dp, matrix_k, matrix_ps, &
                           0.0_dp, matrix_sum)
-      CALL dbcsr_multiply("N", "N", 3.0_dp, matrix_sp, matrix_k, &
+      CALL cp_dbcsr_multiply("N", "N", 3.0_dp, matrix_sp, matrix_k, &
                           1.0_dp, matrix_sum)
 
       !matrix_tmp = KPS
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_k, matrix_ps, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_k, matrix_ps, &
                           0.0_dp, matrix_tmp)
-      CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_tmp, matrix_ps, &
+      CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_tmp, matrix_ps, &
                           1.0_dp, matrix_sum)
-      CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_sp, matrix_tmp, &
+      CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_sp, matrix_tmp, &
                           1.0_dp, matrix_sum)
 
       !matrix_tmp = SPK
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sp, matrix_k, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sp, matrix_k, &
                           0.0_dp, matrix_tmp)
-      CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_sp, matrix_tmp, &
+      CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_sp, matrix_tmp, &
                           1.0_dp, matrix_sum)
 
       ! overwrite matrix_k

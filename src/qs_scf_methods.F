@@ -17,6 +17,7 @@
 !>        new subroutine shift_unocc_mos (03.2016, Sergey Chulkov)
 ! **************************************************************************************************
 MODULE qs_scf_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
 
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               cp_dbcsr_sm_fm_multiply
@@ -290,8 +291,8 @@ CONTAINS
 
 !    Reduce KS matrix
       CALL dbcsr_desymmetrize(matrix_ks, ksbuf2)
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, ksbuf2, ortho_dbcsr, 0.0_dp, ksbuf1)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, ortho_dbcsr, ksbuf1, 0.0_dp, ksbuf2)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, ksbuf2, ortho_dbcsr, 0.0_dp, ksbuf1)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, ortho_dbcsr, ksbuf1, 0.0_dp, ksbuf2)
 
 !    Solve the eigenvalue problem
       CALL copy_dbcsr_to_fm(ksbuf2, matrix_ks_fm)

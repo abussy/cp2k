@@ -13,6 +13,7 @@
 !> \author Rustam Z Khaliullin
 ! **************************************************************************************************
 MODULE almo_scf_optimizer
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE almo_scf_diis_types,             ONLY: almo_scf_diis_extrapolate,&
                                               almo_scf_diis_init,&
                                               almo_scf_diis_push,&
@@ -1163,12 +1164,12 @@ CONTAINS
 
             ! save S.T_0.siginv_0
             IF (my_special_case .EQ. xalmo_case_fully_deloc) THEN
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    almo_scf_env%matrix_s(1), &
                                    almo_scf_env%matrix_t_blk(ispin), &
                                    0.0_dp, ST(ispin), &
                                    filter_eps=almo_scf_env%eps_filter)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    ST(ispin), &
                                    almo_scf_env%matrix_sigma_inv_0deloc(ispin), &
                                    0.0_dp, STsiginv_0(ispin), &
@@ -1194,12 +1195,12 @@ CONTAINS
          IF (penalty_occ_local) THEN
 
             ! compute S.R0.B.R0.S
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 almo_scf_env%matrix_s(1), &
                                 matrix_t_in(ispin), &
                                 0.0_dp, tempNOcc(ispin), &
                                 filter_eps=almo_scf_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 tempNOcc(ispin), &
                                 almo_scf_env%matrix_sigma_inv(ispin), &
                                 0.0_dp, tempNOCC_1(ispin), &
@@ -1211,25 +1212,25 @@ CONTAINS
                   CALL matrix_qs_to_almo(op_sm_set_qs(reim, idim0)%matrix, op_sm_set_almo(reim, idim0)%matrix, &
                                          almo_scf_env%mat_distr_aos, .FALSE.)
 
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                       op_sm_set_almo(reim, idim0)%matrix, &
                                       matrix_t_in(ispin), &
                                       0.0_dp, tempNOcc(ispin), &
                                       filter_eps=almo_scf_env%eps_filter)
 
-                  CALL dbcsr_multiply("T", "N", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                       matrix_t_in(ispin), &
                                       tempNOcc(ispin), &
                                       0.0_dp, tempOccOcc(ispin), &
                                       filter_eps=almo_scf_env%eps_filter)
 
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                       tempNOCC_1(ispin), &
                                       tempOccOcc(ispin), &
                                       0.0_dp, tempNOcc(ispin), &
                                       filter_eps=almo_scf_env%eps_filter)
 
-                  CALL dbcsr_multiply("N", "T", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                                       tempNOcc(ispin), &
                                       tempNOcc_1(ispin), &
                                       0.0_dp, op_sm_set_almo(reim, idim0)%matrix, &
@@ -1327,13 +1328,13 @@ CONTAINS
 
                         !CALL matrix_qs_to_almo(op_sm_set_qs(reim, idim0)%matrix, op_sm_set_almo(reim, idim0)%matrix, &
                         !                       almo_scf_env%mat_distr_aos, .FALSE.)
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                             op_sm_set_almo(reim, idim0)%matrix, &
                                             matrix_t_out(ispin), &
                                             0.0_dp, tempNOcc(ispin), &
                                             filter_eps=almo_scf_env%eps_filter)
                         !warning - save time by computing only the diagonal elements
-                        CALL dbcsr_multiply("T", "N", 1.0_dp, &
+                        CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                             matrix_t_out(ispin), &
                                             tempNOcc(ispin), &
                                             0.0_dp, tempOccOcc(ispin), &
@@ -1675,7 +1676,7 @@ CONTAINS
 
                         DO ispin = 1, nspins
 
-                           CALL dbcsr_multiply("N", "N", -1.0_dp, &
+                           CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                                                prec_vv(ispin), &
                                                grad(ispin), &
                                                0.0_dp, step(ispin), &
@@ -2290,12 +2291,12 @@ CONTAINS
          penalty_vol_prefactor(ispin) = -penalty_amplitude !KEEP: * spin_factor * nocc(ispin)
 
          ! compute m_S0=T0^t.S.T0
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              matrix_s, &
                              m_t_mo_local(ispin), &
                              0.0_dp, tempNOcc1(ispin), &
                              filter_eps=eps_filter)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              m_t_mo_local(ispin), &
                              tempNOcc1(ispin), &
                              0.0_dp, m_S0(ispin), &
@@ -2313,13 +2314,13 @@ CONTAINS
                   CALL matrix_qs_to_almo(op_sm_set_qs(reim, idim0)%matrix, op_sm_set_almo(reim, idim0)%matrix, &
                                          mat_distr_aos, .FALSE.)
 
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                       op_sm_set_almo(reim, idim0)%matrix, &
                                       m_t_mo_local(ispin), &
                                       0.0_dp, tempNOcc1(ispin), &
                                       filter_eps=eps_filter)
 
-                  CALL dbcsr_multiply("T", "N", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                       m_t_mo_local(ispin), &
                                       tempNOcc1(ispin), &
                                       0.0_dp, m_B0(reim, idim0, ispin), &
@@ -2340,27 +2341,27 @@ CONTAINS
                isgf = first_sgf(iatom)
                ncol = nsgf(iatom)
 
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    matrix_s, &
                                    m_t_mo_local(ispin), &
                                    0.0_dp, tempNOcc1(ispin), &
                                    filter_eps=eps_filter)
 
-               CALL dbcsr_multiply("T", "N", 0.5_dp, &
+               CALL cp_dbcsr_multiply("T", "N", 0.5_dp, &
                                    m_t_mo_local(ispin), &
                                    tempNOcc1(ispin), &
                                    0.0_dp, m_B0(1, iatom, ispin), &
                                    first_k=isgf, last_k=isgf + ncol - 1, &
                                    filter_eps=eps_filter)
 
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    matrix_s, &
                                    m_t_mo_local(ispin), &
                                    0.0_dp, tempNOcc1(ispin), &
                                    first_k=isgf, last_k=isgf + ncol - 1, &
                                    filter_eps=eps_filter)
 
-               CALL dbcsr_multiply("T", "N", 0.5_dp, &
+               CALL cp_dbcsr_multiply("T", "N", 0.5_dp, &
                                    m_t_mo_local(ispin), &
                                    tempNOcc1(ispin), &
                                    1.0_dp, m_B0(1, iatom, ispin), &
@@ -2420,13 +2421,13 @@ CONTAINS
                CALL para_group%set_handle(para_group_handle)
 
                ! compute diagonal (a^t.sigma0.a)^(-1/2)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    m_S0(ispin), m_theta(ispin), 0.0_dp, &
                                    tempOccOcc1(ispin), &
                                    filter_eps=eps_filter)
                CALL dbcsr_set(m_sig_sqrti_ii(ispin), 0.0_dp)
                CALL dbcsr_add_on_diag(m_sig_sqrti_ii(ispin), 1.0_dp)
-               CALL dbcsr_multiply("T", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                    m_theta(ispin), tempOccOcc1(ispin), 0.0_dp, &
                                    m_sig_sqrti_ii(ispin), &
                                    retain_sparsity=.TRUE.)
@@ -2439,14 +2440,14 @@ CONTAINS
                CALL dbcsr_set_diag(m_sig_sqrti_ii(ispin), diagonal)
                DEALLOCATE (diagonal)
 
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    m_theta(ispin), &
                                    m_sig_sqrti_ii(ispin), &
                                    0.0_dp, m_theta_normalized(ispin), &
                                    filter_eps=eps_filter)
 
                ! compute new orbitals
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    m_t_mo_local(ispin), &
                                    m_theta_normalized(ispin), &
                                    0.0_dp, matrix_mo_out(ispin), &
@@ -3065,7 +3066,7 @@ CONTAINS
             m_ST_out=ST0)
          CALL dbcsr_copy(Fvo0, m_quench_t_in(ispin))
          CALL dbcsr_copy(Fvo0, FTsiginv0, keep_sparsity=.TRUE.)
-         CALL dbcsr_multiply("N", "N", -1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                              ST0, &
                              siginvTFTsiginv0, &
                              1.0_dp, Fvo0, &
@@ -3086,32 +3087,32 @@ CONTAINS
 
             ! first, compute [QR'R]_mu^i = [(S-SRS).X.siginv']_mu^i
             ! a. FTsiginv0 = S.T0*siginv0
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 ST0, &
                                 m_siginv0_in(ispin), &
                                 0.0_dp, FTsiginv0, &
                                 filter_eps=eps_filter)
             ! c. tmp1(use ST0) = S.X
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_S_in(1), &
                                 m_X, &
                                 0.0_dp, ST0, &
                                 filter_eps=eps_filter)
             ! d. tmp2 = tr(T0).tmp1 = tr(T0).S.X
-            CALL dbcsr_multiply("T", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                 m_T0_in(ispin), &
                                 ST0, &
                                 0.0_dp, siginvTFTsiginv0, &
                                 filter_eps=eps_filter)
             ! e. tmp1 = tmp1 - tmp3.tmp2 = S.X - S.T0.siginv0*tr(T0).S.X
             !         = (1-S.R0).S.X
-            CALL dbcsr_multiply("N", "N", -1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                                 FTsiginv0, &
                                 siginvTFTsiginv0, &
                                 1.0_dp, ST0, &
                                 filter_eps=eps_filter)
             ! f. tmp2(use FTsiginv0) = tmp1*siginv
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 ST0, &
                                 m_siginv_in(ispin), &
                                 0.0_dp, FTsiginv0, &
@@ -3174,31 +3175,31 @@ CONTAINS
                         template=m_siginv_in, &
                         matrix_type=dbcsr_type_no_symmetry)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_F_in, &
                           m_T_in, &
                           0.0_dp, m_tmp_no_1, &
                           filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_tmp_no_1, &
                           m_siginv_in, &
                           0.0_dp, m_FTsiginv_out, &
                           filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("T", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                           m_T_in, &
                           m_FTsiginv_out, &
                           0.0_dp, m_tmp_oo_1, &
                           filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_siginv_in, &
                           m_tmp_oo_1, &
                           0.0_dp, m_siginvTFTsiginv_out, &
                           filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_S_in, &
                           m_T_in, &
                           0.0_dp, m_ST_out, &
@@ -3392,10 +3393,10 @@ CONTAINS
                CALL dbcsr_create(matrix_tmp2, template=almo_scf_env%matrix_sigma(ispin), &
                                  matrix_type=dbcsr_type_no_symmetry)
 
-               CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_sigma_sqrt_inv(ispin), &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_sigma_sqrt_inv(ispin), &
                                    almo_scf_env%matrix_sigma(ispin), &
                                    0.0_dp, matrix_tmp1, filter_eps=almo_scf_env%eps_filter)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
                                    almo_scf_env%matrix_sigma_sqrt_inv(ispin), &
                                    0.0_dp, matrix_tmp2, filter_eps=almo_scf_env%eps_filter)
 
@@ -3547,7 +3548,7 @@ CONTAINS
                      !   CALL dbcsr_init(matrix_tmp1)
                      !   CALL dbcsr_create(matrix_tmp1,template=k_vd_index_down,&
                      !                        matrix_type=dbcsr_type_no_symmetry)
-                     !   CALL dbcsr_multiply("N","N",1.0_dp,k_vd_index_up,&
+                     !   CALL cp_dbcsr_multiply("N","N",1.0_dp,k_vd_index_up,&
                      !                          k_vd_index_down,&
                      !                          0.0_dp, matrix_tmp1,&
                      !                          filter_eps=almo_scf_env%eps_filter)
@@ -3660,7 +3661,7 @@ CONTAINS
                      IF (almo_scf_env%deloc_truncate_virt .NE. virt_full) THEN
 
                         ! construct k-excited virtuals
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, vd_fixed, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, vd_fixed, &
                                             almo_scf_env%matrix_k_blk(ispin), &
                                             0.0_dp, almo_scf_env%matrix_v(ispin), &
                                             filter_eps=almo_scf_env%eps_filter)
@@ -3713,7 +3714,7 @@ CONTAINS
                                              matrix_type=dbcsr_type_no_symmetry)
                            CALL dbcsr_desymmetrize(almo_scf_env%matrix_sigma_vv(ispin), &
                                                    matrix_tmp1)
-                           CALL dbcsr_multiply("T", "N", 1.0_dp, sigma_vv_sqrt, &
+                           CALL cp_dbcsr_multiply("T", "N", 1.0_dp, sigma_vv_sqrt, &
                                                sigma_vv_sqrt, &
                                                -1.0_dp, matrix_tmp1, filter_eps=almo_scf_env%eps_filter)
                            frob_matrix = dbcsr_frobenius_norm(matrix_tmp1)
@@ -3723,7 +3724,7 @@ CONTAINS
                               WRITE (unit_nr, *) "Error for ( U^T * U - Sig )", &
                                  frob_matrix/frob_matrix_base
                            END IF
-                           CALL dbcsr_multiply("N", "N", 1.0_dp, sigma_vv_sqrt_inv, &
+                           CALL cp_dbcsr_multiply("N", "N", 1.0_dp, sigma_vv_sqrt_inv, &
                                                sigma_vv_sqrt, &
                                                0.0_dp, matrix_tmp1, filter_eps=almo_scf_env%eps_filter)
                            frob_matrix_base = dbcsr_frobenius_norm(matrix_tmp1)
@@ -3758,10 +3759,10 @@ CONTAINS
                            CALL dbcsr_create(matrix_tmp2, template=almo_scf_env%matrix_sigma_vv(ispin), &
                                              matrix_type=dbcsr_type_no_symmetry)
 
-                           CALL dbcsr_multiply("N", "N", 1.0_dp, sigma_vv_sqrt_inv, &
+                           CALL cp_dbcsr_multiply("N", "N", 1.0_dp, sigma_vv_sqrt_inv, &
                                                almo_scf_env%matrix_sigma_vv(ispin), &
                                                0.0_dp, matrix_tmp1, filter_eps=almo_scf_env%eps_filter)
-                           CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
+                           CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
                                                sigma_vv_sqrt_inv, &
                                                0.0_dp, matrix_tmp2, filter_eps=almo_scf_env%eps_filter)
 
@@ -3836,7 +3837,7 @@ CONTAINS
                         CALL timeset('k_opt_t_curr', handle3)
 
                         ! construct current occupied orbitals T_blk + V_r*X
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                             almo_scf_env%matrix_v(ispin), &
                                             almo_scf_env%matrix_x(ispin), &
                                             0.0_dp, t_curr, &
@@ -3869,7 +3870,7 @@ CONTAINS
                         IF (safe_mode) THEN
                            CALL dbcsr_create(matrix_tmp1, template=sigma_oo_curr, &
                                              matrix_type=dbcsr_type_no_symmetry)
-                           CALL dbcsr_multiply("N", "N", 1.0_dp, sigma_oo_curr, &
+                           CALL cp_dbcsr_multiply("N", "N", 1.0_dp, sigma_oo_curr, &
                                                sigma_oo_curr_inv, &
                                                0.0_dp, matrix_tmp1, &
                                                filter_eps=almo_scf_env%eps_filter)
@@ -3887,7 +3888,7 @@ CONTAINS
                         IF (safe_mode) THEN
                            CALL dbcsr_create(matrix_tmp1, template=sigma_oo_curr, &
                                              matrix_type=dbcsr_type_no_symmetry)
-                           CALL dbcsr_multiply("N", "N", 1.0_dp, sigma_oo_curr_inv, &
+                           CALL cp_dbcsr_multiply("N", "N", 1.0_dp, sigma_oo_curr_inv, &
                                                sigma_oo_curr, &
                                                0.0_dp, matrix_tmp1, &
                                                filter_eps=almo_scf_env%eps_filter)
@@ -3911,7 +3912,7 @@ CONTAINS
                         ! = (1-Q^VR_curr)|ALMO_vd_basis>
                         ! use sigma_vv_sqrt to store the inverse of the overlap
                         ! sigma_vv_inv is computed from sqrt/cholesky
-                        CALL dbcsr_multiply("N", "T", 1.0_dp, &
+                        CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                                             sigma_vv_sqrt_inv, &
                                             sigma_vv_sqrt_inv, &
                                             0.0_dp, sigma_vv_sqrt, &
@@ -3938,22 +3939,22 @@ CONTAINS
                         IF (line_search) THEN
                            CALL dbcsr_copy(prev_grad, grad)
                         END IF
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                             almo_scf_env%matrix_ks_0deloc(ispin), &
                                             t_curr, &
                                             0.0_dp, tmp2_n_o, &
                                             filter_eps=almo_scf_env%eps_filter)
-                        CALL dbcsr_multiply("N", "T", 1.0_dp, &
+                        CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                                             sigma_oo_curr_inv, &
                                             almo_scf_env%matrix_x(ispin), &
                                             0.0_dp, tmp4_o_vr, &
                                             filter_eps=almo_scf_env%eps_filter)
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                             tmp2_n_o, &
                                             tmp4_o_vr, &
                                             0.0_dp, tmp1_n_vr, &
                                             filter_eps=almo_scf_env%eps_filter)
-                        CALL dbcsr_multiply("T", "N", 2.0_dp*spin_factor, &
+                        CALL cp_dbcsr_multiply("T", "N", 2.0_dp*spin_factor, &
                                             almo_scf_env%matrix_v_disc(ispin), &
                                             tmp1_n_vr, &
                                             0.0_dp, grad, &
@@ -3976,7 +3977,7 @@ CONTAINS
                            CALL timeset('k_opt_energy', handle6)
 
                            ! compute "energy" c0*Tr[sig_inv_oo*t*F*t]
-                           CALL dbcsr_multiply("T", "N", spin_factor, &
+                           CALL cp_dbcsr_multiply("T", "N", spin_factor, &
                                                t_curr, &
                                                tmp2_n_o, &
                                                0.0_dp, sigma_oo_curr, &
@@ -4443,7 +4444,7 @@ CONTAINS
                      CALL timeset('k_opt_v0_update', handle8)
 
                      ! update retained ALMO virtuals to restart the cg iterations
-                     CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                     CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                          almo_scf_env%matrix_v_disc_blk(ispin), &
                                          almo_scf_env%matrix_k_blk(ispin), &
                                          0.0_dp, vr_fixed, &
@@ -4452,7 +4453,7 @@ CONTAINS
                                     +1.0_dp, +1.0_dp)
 
                      ! update discarded ALMO virtuals to restart the cg iterations
-                     CALL dbcsr_multiply("N", "T", 1.0_dp, &
+                     CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                                          almo_scf_env%matrix_v_blk(ispin), &
                                          almo_scf_env%matrix_k_blk(ispin), &
                                          0.0_dp, vd_fixed, &
@@ -4484,10 +4485,10 @@ CONTAINS
                         CALL dbcsr_create(matrix_tmp2, template=k_vr_index_down, &
                                           matrix_type=dbcsr_type_no_symmetry)
 
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, vr_index_sqrt_inv, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, vr_index_sqrt_inv, &
                                             k_vr_index_down, &
                                             0.0_dp, matrix_tmp1, filter_eps=almo_scf_env%eps_filter)
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
                                             vr_index_sqrt_inv, &
                                             0.0_dp, matrix_tmp2, filter_eps=almo_scf_env%eps_filter)
 
@@ -4502,7 +4503,7 @@ CONTAINS
                         CALL dbcsr_release(matrix_tmp1)
                         CALL dbcsr_release(matrix_tmp2)
                      END IF
-                     CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                     CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                          vr_fixed, &
                                          vr_index_sqrt_inv, &
                                          0.0_dp, almo_scf_env%matrix_v_blk(ispin), &
@@ -4531,10 +4532,10 @@ CONTAINS
                         CALL dbcsr_create(matrix_tmp2, template=k_vd_index_down, &
                                           matrix_type=dbcsr_type_no_symmetry)
 
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, vd_index_sqrt_inv, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, vd_index_sqrt_inv, &
                                             k_vd_index_down, &
                                             0.0_dp, matrix_tmp1, filter_eps=almo_scf_env%eps_filter)
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, &
                                             vd_index_sqrt_inv, &
                                             0.0_dp, matrix_tmp2, filter_eps=almo_scf_env%eps_filter)
 
@@ -4549,7 +4550,7 @@ CONTAINS
                         CALL dbcsr_release(matrix_tmp1)
                         CALL dbcsr_release(matrix_tmp2)
                      END IF
-                     CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                     CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                          vd_fixed, &
                                          vd_index_sqrt_inv, &
                                          0.0_dp, almo_scf_env%matrix_v_disc_blk(ispin), &
@@ -4635,10 +4636,10 @@ CONTAINS
                   CALL dbcsr_create(matrix_tmp2, template=almo_scf_env%matrix_s(1), &
                                     matrix_type=dbcsr_type_no_symmetry)
 
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_sqrt_inv(1), &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_sqrt_inv(1), &
                                       almo_scf_env%matrix_s(1), &
                                       0.0_dp, matrix_tmp1, filter_eps=almo_scf_env%eps_filter)
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, almo_scf_env%matrix_s_sqrt_inv(1), &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, almo_scf_env%matrix_s_sqrt_inv(1), &
                                       0.0_dp, matrix_tmp2, filter_eps=almo_scf_env%eps_filter)
 
                   frob_matrix_base = dbcsr_frobenius_norm(matrix_tmp2)
@@ -4769,7 +4770,7 @@ CONTAINS
                                      almo_scf_env%matrix_s(1), &
                                      threshold=almo_scf_env%eps_filter)
             ELSE
-               CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_sqrt_inv(1), &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_sqrt_inv(1), &
                                    almo_scf_env%matrix_s_sqrt_inv(1), &
                                    0.0_dp, almo_scf_env%matrix_s_inv(1), &
                                    filter_eps=almo_scf_env%eps_filter)
@@ -4778,7 +4779,7 @@ CONTAINS
             IF (safe_mode) THEN
                CALL dbcsr_create(matrix_tmp1, template=almo_scf_env%matrix_s(1), &
                                  matrix_type=dbcsr_type_no_symmetry)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_inv(1), &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s_inv(1), &
                                    almo_scf_env%matrix_s(1), &
                                    0.0_dp, matrix_tmp1, &
                                    filter_eps=almo_scf_env%eps_filter)
@@ -4958,12 +4959,12 @@ CONTAINS
 
       ! compute qq = (Vd^tr)*F*Vd
       CALL dbcsr_create(tmp_n_vd, template=vd_prop)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, f, vd_prop, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, f, vd_prop, &
                           0.0_dp, tmp_n_vd, filter_eps=eps_filter)
       CALL dbcsr_create(tmp_vd_vd_blk, &
                         template=template_vd_vd_blk)
       CALL dbcsr_copy(tmp_vd_vd_blk, template_vd_vd_blk)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, vd_prop, tmp_n_vd, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, vd_prop, tmp_n_vd, &
                           0.0_dp, tmp_vd_vd_blk, &
                           retain_sparsity=.TRUE., &
                           filter_eps=eps_filter)
@@ -4976,13 +4977,13 @@ CONTAINS
       CALL dbcsr_add_on_diag(qq_diag, 1.0_dp)
       CALL dbcsr_set_diag(qq_diag, q_diagonal)
       CALL dbcsr_create(t1, template=prec)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, qq_diag, tmp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, qq_diag, tmp, &
                           0.0_dp, t1, filter_eps=eps_filter)
 
       ! compute pp = X*sigma_oo_inv*X^tr
       CALL dbcsr_create(tmp_vr_vr_blk, template=template_vr_vr_blk)
       CALL dbcsr_copy(tmp_vr_vr_blk, template_vr_vr_blk)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, x, oo_inv_x_tr, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, x, oo_inv_x_tr, &
                           0.0_dp, tmp_vr_vr_blk, &
                           retain_sparsity=.TRUE., &
                           filter_eps=eps_filter)
@@ -4995,15 +4996,15 @@ CONTAINS
       CALL dbcsr_set_diag(pp_diag, p_diagonal)
       CALL dbcsr_set(tmp, 1.0_dp)
       CALL dbcsr_create(t2, template=prec)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, tmp, pp_diag, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp, pp_diag, &
                           0.0_dp, t2, filter_eps=eps_filter)
 
       CALL dbcsr_hadamard_product(t1, t2, prec)
 
       ! compute qq = (Vd^tr)*S*Vd
-      CALL dbcsr_multiply("N", "N", 1.0_dp, s, vd_prop, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, s, vd_prop, &
                           0.0_dp, tmp_n_vd, filter_eps=eps_filter)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, vd_prop, tmp_n_vd, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, vd_prop, tmp_n_vd, &
                           0.0_dp, tmp_vd_vd_blk, &
                           retain_sparsity=.TRUE., &
                           filter_eps=eps_filter)
@@ -5012,17 +5013,17 @@ CONTAINS
       CALL dbcsr_add_on_diag(qq_diag, 1.0_dp)
       CALL dbcsr_set_diag(qq_diag, q_diagonal)
       CALL dbcsr_set(tmp, 1.0_dp)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, qq_diag, tmp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, qq_diag, tmp, &
                           0.0_dp, t1, filter_eps=eps_filter)
 
       ! compute pp = X*sig_oo_inv*(T^tr)*F*T*sig_oo_inv*(X^tr)
       CALL dbcsr_create(tmp1_n_vr, template=template_n_vr)
       CALL dbcsr_create(tmp2_n_vr, template=template_n_vr)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, t, oo_inv_x_tr, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, t, oo_inv_x_tr, &
                           0.0_dp, tmp1_n_vr, filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, f, tmp1_n_vr, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, f, tmp1_n_vr, &
                           0.0_dp, tmp2_n_vr, filter_eps=eps_filter)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, tmp1_n_vr, tmp2_n_vr, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, tmp1_n_vr, tmp2_n_vr, &
                           0.0_dp, tmp_vr_vr_blk, &
                           retain_sparsity=.TRUE., &
                           filter_eps=eps_filter)
@@ -5031,7 +5032,7 @@ CONTAINS
       CALL dbcsr_add_on_diag(pp_diag, 1.0_dp)
       CALL dbcsr_set_diag(pp_diag, p_diagonal)
       CALL dbcsr_set(tmp, 1.0_dp)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, tmp, pp_diag, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp, pp_diag, &
                           0.0_dp, t2, filter_eps=eps_filter)
 
       CALL dbcsr_hadamard_product(t1, t2, tmp)
@@ -5039,9 +5040,9 @@ CONTAINS
       CALL dbcsr_scale(prec, 2.0_dp*spin_factor)
 
       ! compute qp = X*sig_oo_inv*(T^tr)*S*Vd
-      CALL dbcsr_multiply("N", "N", 1.0_dp, s, vd_blk, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, s, vd_blk, &
                           0.0_dp, tmp_n_vd, filter_eps=eps_filter)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, tmp_n_vd, tmp1_n_vr, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, tmp_n_vd, tmp1_n_vr, &
                           0.0_dp, tmp, retain_sparsity=.TRUE., &
                           filter_eps=eps_filter)
       CALL dbcsr_hadamard_product(grad, tmp, t1)
@@ -5111,13 +5112,13 @@ CONTAINS
       CALL dbcsr_create(tmp_vd_vd_blk, &
                         template=almo_scf_env%matrix_vv_disc_blk(ispin), &
                         matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           almo_scf_env%matrix_s(1), &
                           vd_prop, &
                           0.0_dp, tmp_n_vd, filter_eps=eps_filter)
       CALL dbcsr_copy(tmp_vd_vd_blk, &
                       almo_scf_env%matrix_vv_disc_blk(ispin))
-      CALL dbcsr_multiply("T", "N", 1.0_dp, vd_prop, tmp_n_vd, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, vd_prop, tmp_n_vd, &
                           0.0_dp, tmp_vd_vd_blk, &
                           retain_sparsity=.TRUE.)
 
@@ -5133,23 +5134,23 @@ CONTAINS
                                      max_iter_lanczos=almo_scf_env%max_iter_lanczos)
 
       ! compute F_qq = (Vd^tr)*F*Vd
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           almo_scf_env%matrix_ks_0deloc(ispin), &
                           vd_prop, &
                           0.0_dp, tmp_n_vd, filter_eps=eps_filter)
       CALL dbcsr_copy(tmp_vd_vd_blk, &
                       almo_scf_env%matrix_vv_disc_blk(ispin))
-      CALL dbcsr_multiply("T", "N", 1.0_dp, vd_prop, tmp_n_vd, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, vd_prop, tmp_n_vd, &
                           0.0_dp, tmp_vd_vd_blk, &
                           retain_sparsity=.TRUE.)
       CALL dbcsr_release(tmp_n_vd)
 
       ! bring to the blocked-orthogonalized basis
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           tmp_vd_vd_blk, &
                           almo_scf_env%opt_k_t_dd(ispin), &
                           0.0_dp, s_dd_sqrt, filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           almo_scf_env%opt_k_t_dd(ispin), &
                           s_dd_sqrt, &
                           0.0_dp, tmp_vd_vd_blk, filter_eps=eps_filter)
@@ -5169,7 +5170,7 @@ CONTAINS
       ! T = S^{-1/2}.U
       CALL dbcsr_copy(tmp_vd_vd_blk, &
                       almo_scf_env%opt_k_t_dd(ispin))
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           tmp_vd_vd_blk, &
                           s_dd_sqrt, &
                           0.0_dp, almo_scf_env%opt_k_t_dd(ispin), &
@@ -5184,7 +5185,7 @@ CONTAINS
                       almo_scf_env%matrix_k_blk_ones(ispin))
       CALL dbcsr_create(t1, &
                         template=almo_scf_env%matrix_k_blk_ones(ispin))
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           opt_k_e_dd, tmp, &
                           0.0_dp, t1, filter_eps=eps_filter)
       CALL dbcsr_release(opt_k_e_dd)
@@ -5195,7 +5196,7 @@ CONTAINS
                         matrix_type=dbcsr_type_no_symmetry)
       CALL dbcsr_copy(tmp_vr_vr_blk, &
                       almo_scf_env%matrix_sigma_vv_blk(ispin))
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           almo_scf_env%matrix_x(ispin), &
                           oo_inv_x_tr, &
                           0.0_dp, tmp_vr_vr_blk, &
@@ -5218,24 +5219,24 @@ CONTAINS
                         template=almo_scf_env%matrix_v(ispin))
       CALL dbcsr_create(tmp2_n_vr, &
                         template=almo_scf_env%matrix_v(ispin))
-      CALL dbcsr_multiply("N", "N", 1.0_dp, t_curr, oo_inv_x_tr, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, t_curr, oo_inv_x_tr, &
                           0.0_dp, tmp1_n_vr, filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           almo_scf_env%matrix_ks_0deloc(ispin), &
                           tmp1_n_vr, &
                           0.0_dp, tmp2_n_vr, filter_eps=eps_filter)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, tmp1_n_vr, tmp2_n_vr, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, tmp1_n_vr, tmp2_n_vr, &
                           0.0_dp, tmp_vr_vr_blk, &
                           retain_sparsity=.TRUE.)
       CALL dbcsr_release(tmp1_n_vr)
       CALL dbcsr_release(tmp2_n_vr)
 
       ! bring to the blocked-orthogonalized basis
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           tmp_vr_vr_blk, &
                           almo_scf_env%opt_k_t_rr(ispin), &
                           0.0_dp, s_rr_sqrt, filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           almo_scf_env%opt_k_t_rr(ispin), &
                           s_rr_sqrt, &
                           0.0_dp, tmp_vr_vr_blk, filter_eps=eps_filter)
@@ -5255,7 +5256,7 @@ CONTAINS
       ! T = S^{-1/2}.U
       CALL dbcsr_copy(tmp_vr_vr_blk, &
                       almo_scf_env%opt_k_t_rr(ispin))
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           tmp_vr_vr_blk, &
                           s_rr_sqrt, &
                           0.0_dp, almo_scf_env%opt_k_t_rr(ispin), &
@@ -5264,7 +5265,7 @@ CONTAINS
       CALL dbcsr_release(tmp_vr_vr_blk)
 
       ! copy diagonal elements of the result into cols of a matrix
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           tmp, opt_k_e_rr, &
                           0.0_dp, almo_scf_env%opt_k_denom(ispin), &
                           filter_eps=eps_filter)
@@ -5319,10 +5320,10 @@ CONTAINS
       CALL dbcsr_create(tmp_k, template=almo_scf_env%matrix_k_blk(ispin))
 
       ! transform gradient to the correct "diagonal" basis
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           grad, almo_scf_env%opt_k_t_rr(ispin), &
                           0.0_dp, tmp_k, filter_eps=eps_filter)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                           almo_scf_env%opt_k_t_dd(ispin), tmp_k, &
                           0.0_dp, step, filter_eps=eps_filter)
 
@@ -5331,10 +5332,10 @@ CONTAINS
                                   almo_scf_env%opt_k_denom(ispin), tmp_k)
 
       ! back-transform the result to the initial basis
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           almo_scf_env%opt_k_t_dd(ispin), tmp_k, &
                           0.0_dp, step, filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "T", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                           step, almo_scf_env%opt_k_t_rr(ispin), &
                           0.0_dp, tmp_k, filter_eps=eps_filter)
 
@@ -5466,10 +5467,10 @@ CONTAINS
 !          CALL dbcsr_create(matrix_tmp2,template=matrix_sigma_vv_full,&
 !                               matrix_type=dbcsr_type_no_symmetry)
 !
-!          CALL dbcsr_multiply("N","N",1.0_dp,matrix_sigma_vv_full_sqrt_inv,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,matrix_sigma_vv_full_sqrt_inv,&
 !                                 matrix_sigma_vv_full,&
 !                                 0.0_dp,matrix_tmp1,filter_eps=almo_scf_env%eps_filter)
-!          CALL dbcsr_multiply("N","N",1.0_dp,matrix_tmp1,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,matrix_tmp1,&
 !                                 matrix_sigma_vv_full_sqrt_inv,&
 !                                 0.0_dp,matrix_tmp2,filter_eps=almo_scf_env%eps_filter)
 !
@@ -5510,41 +5511,41 @@ CONTAINS
 !               template=almo_scf_env%matrix_sigma(ispin),&
 !               matrix_type=dbcsr_type_no_symmetry)
 !
-!       CALL dbcsr_multiply("T","N",1.0_dp,almo_scf_env%matrix_t_blk(ispin),&
+!       CALL cp_dbcsr_multiply("T","N",1.0_dp,almo_scf_env%matrix_t_blk(ispin),&
 !               almo_scf_env%matrix_ks_0deloc(ispin),&
 !               0.0_dp,Fon,filter_eps=almo_scf_env%eps_filter)
 !
-!       CALL dbcsr_multiply("N","N",1.0_dp,Fon,&
+!       CALL cp_dbcsr_multiply("N","N",1.0_dp,Fon,&
 !               almo_scf_env%matrix_v_full_blk(ispin),&
 !               0.0_dp,Fov,filter_eps=almo_scf_env%eps_filter)
 !
-!       CALL dbcsr_multiply("N","N",1.0_dp,Fon,&
+!       CALL cp_dbcsr_multiply("N","N",1.0_dp,Fon,&
 !               almo_scf_env%matrix_t_blk(ispin),&
 !               0.0_dp,temp1_oo,filter_eps=almo_scf_env%eps_filter)
 !
-!       CALL dbcsr_multiply("N","N",1.0_dp,temp1_oo,&
+!       CALL cp_dbcsr_multiply("N","N",1.0_dp,temp1_oo,&
 !               almo_scf_env%matrix_sigma_inv(ispin),&
 !               0.0_dp,temp2_oo,filter_eps=almo_scf_env%eps_filter)
 !       CALL dbcsr_release(temp1_oo)
 !
-!       CALL dbcsr_multiply("T","N",1.0_dp,almo_scf_env%matrix_t_blk(ispin),&
+!       CALL cp_dbcsr_multiply("T","N",1.0_dp,almo_scf_env%matrix_t_blk(ispin),&
 !               almo_scf_env%matrix_s(1),&
 !               0.0_dp,Fon,filter_eps=almo_scf_env%eps_filter)
 !
-!       CALL dbcsr_multiply("N","N",1.0_dp,Fon,&
+!       CALL cp_dbcsr_multiply("N","N",1.0_dp,Fon,&
 !               almo_scf_env%matrix_v_full_blk(ispin),&
 !               0.0_dp,Fov_filtered,filter_eps=almo_scf_env%eps_filter)
 !       CALL dbcsr_release(Fon)
 !
-!       CALL dbcsr_multiply("N","N",-1.0_dp,temp2_oo,&
+!       CALL cp_dbcsr_multiply("N","N",-1.0_dp,temp2_oo,&
 !               Fov_filtered,&
 !               1.0_dp,Fov,filter_eps=almo_scf_env%eps_filter)
 !       CALL dbcsr_release(temp2_oo)
 !
-!       CALL dbcsr_multiply("N","N",1.0_dp,almo_scf_env%matrix_sigma_inv(ispin),&
+!       CALL cp_dbcsr_multiply("N","N",1.0_dp,almo_scf_env%matrix_sigma_inv(ispin),&
 !               Fov,0.0_dp,Fov_filtered,filter_eps=almo_scf_env%eps_filter)
 !
-!       CALL dbcsr_multiply("N","N",1.0_dp,Fov_filtered,&
+!       CALL cp_dbcsr_multiply("N","N",1.0_dp,Fov_filtered,&
 !               matrix_sigma_vv_full_sqrt_inv,&
 !               0.0_dp,Fov,filter_eps=almo_scf_env%eps_filter)
 !       !CALL dbcsr_copy(Fov,Fov_filtered)
@@ -5628,7 +5629,7 @@ CONTAINS
 !!CALL dbcsr_iterator_stop(iter)
 !!CALL dbcsr_finalize(temp_u_v_full_blk)
 !!!CALL dbcsr_print(temp_u_v_full_blk)
-!!CALL dbcsr_multiply("N","T",1.0_dp,Fov,temp_u_v_full_blk,&
+!!CALL cp_dbcsr_multiply("N","T",1.0_dp,Fov,temp_u_v_full_blk,&
 !!        0.0_dp,Fov_filtered,filter_eps=almo_scf_env%eps_filter)
 !!
 !!CALL dbcsr_copy(Fov,Fov_filtered)
@@ -5656,7 +5657,7 @@ CONTAINS
 !       CALL dbcsr_add_on_diag(U_blk_tot,1.0_dp)
 !
 !!CALL dbcsr_add_on_diag(U_blk,1.0_dp)
-!!CALL dbcsr_multiply("N","T",1.0_dp,U_blk,temp_u_v_full_blk,&
+!!CALL cp_dbcsr_multiply("N","T",1.0_dp,U_blk,temp_u_v_full_blk,&
 !!        0.0_dp,U_blk_tot,filter_eps=almo_scf_env%eps_filter)
 !!
 !!CALL dbcsr_release(temp_u_v_full_blk)
@@ -5715,10 +5716,10 @@ CONTAINS
 !          ! create the diagonal blocks only
 !          CALL dbcsr_add_on_diag(grad_blk,1.0_dp)
 !
-!          CALL dbcsr_multiply("T","N",2.0_dp,Fov_filtered,Fov,&
+!          CALL cp_dbcsr_multiply("T","N",2.0_dp,Fov_filtered,Fov,&
 !                  0.0_dp,grad_blk,retain_sparsity=.TRUE.,&
 !                  filter_eps=almo_scf_env%eps_filter)
-!          CALL dbcsr_multiply("T","N",-2.0_dp,Fov,Fov_filtered,&
+!          CALL cp_dbcsr_multiply("T","N",-2.0_dp,Fov,Fov_filtered,&
 !                  1.0_dp,grad_blk,retain_sparsity=.TRUE.,&
 !                  filter_eps=almo_scf_env%eps_filter)
 !
@@ -5743,7 +5744,7 @@ CONTAINS
 !             ! get c0
 !             c0 = obj_function
 !             ! get b0 <= d_f/d_alpha along grad
-!             !!!CALL dbcsr_multiply("N","N",4.0_dp,Fov,grad_blk,&
+!             !!!CALL cp_dbcsr_multiply("N","N",4.0_dp,Fov,grad_blk,&
 !             !!!        0.0_dp,temp0_ov,&
 !             !!!        filter_eps=almo_scf_env%eps_filter)
 !             !!!CALL dbcsr_dot(Fov_filtered,temp0_ov,b0)
@@ -5756,7 +5757,7 @@ CONTAINS
 !                CALL dbcsr_scale(step_blk,-1.0_dp*alpha)
 !                CALL generator_to_unitary(step_blk,U_blk,&
 !                        almo_scf_env%eps_filter)
-!                CALL dbcsr_multiply("N","N",1.0_dp,Fov,U_blk,0.0_dp,temp0_ov,&
+!                CALL cp_dbcsr_multiply("N","N",1.0_dp,Fov,U_blk,0.0_dp,temp0_ov,&
 !                        filter_eps=almo_scf_env%eps_filter)
 !                CALL dbcsr_hadamard_product(temp0_ov,matrix_filter,&
 !                        Fov_filtered)
@@ -5802,7 +5803,7 @@ CONTAINS
 !
 !             ! update Fov and U_blk_tot (use grad_blk as tmp storage)
 !             CALL dbcsr_copy(Fov,temp0_ov)
-!             CALL dbcsr_multiply("N","N",1.0_dp,U_blk_tot,U_blk,&
+!             CALL cp_dbcsr_multiply("N","N",1.0_dp,U_blk_tot,U_blk,&
 !                     0.0_dp,grad_blk,&
 !                     filter_eps=almo_scf_env%eps_filter)
 !             CALL dbcsr_copy(U_blk_tot,grad_blk)
@@ -5832,7 +5833,7 @@ CONTAINS
 !       ENDDO ! stop iterations
 !
 !       IF (safe_mode) THEN
-!          CALL dbcsr_multiply("N","N",1.0_dp,Fov_original,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,Fov_original,&
 !                  U_blk_tot,0.0_dp,temp0_ov,&
 !                  filter_eps=almo_scf_env%eps_filter)
 !CALL dbcsr_print(temp0_ov)
@@ -5863,11 +5864,11 @@ CONTAINS
 !       CALL dbcsr_create(v_full_tmp,&
 !               template=almo_scf_env%matrix_v_full_blk(ispin),&
 !               matrix_type=dbcsr_type_no_symmetry)
-!       CALL dbcsr_multiply("N","N",1.0_dp,&
+!       CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !               v_full_new,&
 !               matrix_sigma_vv_full_sqrt_inv,0.0_dp,v_full_tmp,&
 !               filter_eps=almo_scf_env%eps_filter)
-!       CALL dbcsr_multiply("N","N",1.0_dp,&
+!       CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !               v_full_tmp,&
 !               U_blk_tot,0.0_dp,v_full_new,&
 !               filter_eps=almo_scf_env%eps_filter)
@@ -6044,12 +6045,12 @@ CONTAINS
 
       ! do d_E/d_T first
       !IF (.NOT.PRESENT(m_FTsiginv)) THEN
-      !   CALL dbcsr_multiply("N","N",1.0_dp,&
+      !   CALL cp_dbcsr_multiply("N","N",1.0_dp,&
       !           m_ks,&
       !           m_t,&
       !           0.0_dp,m_tmp_no_1,&
       !           filter_eps=eps_filter)
-      !   CALL dbcsr_multiply("N","N",1.0_dp,&
+      !   CALL cp_dbcsr_multiply("N","N",1.0_dp,&
       !           m_tmp_no_1,&
       !           m_siginv,&
       !           0.0_dp,m_FTsiginv,&
@@ -6060,12 +6061,12 @@ CONTAINS
       CALL dbcsr_copy(m_tmp_no_2, m_FTsiginv, keep_sparsity=.TRUE.)
 
       !IF (.NOT.PRESENT(m_siginvTFTsiginv)) THEN
-      !   CALL dbcsr_multiply("T","N",1.0_dp,&
+      !   CALL cp_dbcsr_multiply("T","N",1.0_dp,&
       !           m_t,&
       !           m_FTsiginv,&
       !           0.0_dp,m_tmp_oo_1,&
       !           filter_eps=eps_filter)
-      !   CALL dbcsr_multiply("N","N",1.0_dp,&
+      !   CALL cp_dbcsr_multiply("N","N",1.0_dp,&
       !           m_siginv,&
       !           m_tmp_oo_1,&
       !           0.0_dp,m_siginvTFTsiginv,&
@@ -6073,14 +6074,14 @@ CONTAINS
       !ENDIF
 
       !IF (.NOT.PRESENT(m_ST)) THEN
-      !   CALL dbcsr_multiply("N","N",1.0_dp,&
+      !   CALL cp_dbcsr_multiply("N","N",1.0_dp,&
       !           m_s,&
       !           m_t,&
       !           0.0_dp,m_ST,&
       !           filter_eps=eps_filter)
       !ENDIF
 
-      CALL dbcsr_multiply("N", "N", -1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                           m_ST, &
                           m_siginvTFTsiginv, &
                           1.0_dp, m_tmp_no_2, &
@@ -6096,14 +6097,14 @@ CONTAINS
 
             DO reim = 1, SIZE(op_sm_set, 1) ! this loop is over Re/Im
 
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    op_sm_set(reim, idim0)%matrix, &
                                    m_t, &
                                    0.0_dp, tempNOcc1, &
                                    filter_eps=eps_filter)
 
                ! warning - save time by computing only the diagonal elements
-               CALL dbcsr_multiply("T", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                    m_t, &
                                    tempNOcc1, &
                                    0.0_dp, tempOccOcc1, &
@@ -6116,7 +6117,7 @@ CONTAINS
                CALL dbcsr_set_diag(tempOccOcc1, tg_diagonal)
                DEALLOCATE (tg_diagonal)
 
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    tempNOcc1, &
                                    tempOccOcc1, &
                                    0.0_dp, temp1, &
@@ -6143,7 +6144,7 @@ CONTAINS
 
       ! add penalty on the occupied volume: det(sigma)
       IF (penalty_occ_vol) THEN
-         !RZK-warning CALL dbcsr_multiply("N","N",&
+         !RZK-warning CALL cp_dbcsr_multiply("N","N",&
          !RZK-warning         penalty_occ_vol_prefactor,&
          !RZK-warning         m_ST,&
          !RZK-warning         m_siginv,&
@@ -6151,7 +6152,7 @@ CONTAINS
          !RZK-warning         retain_sparsity=.TRUE.,&
          !RZK-warning         )
          CALL dbcsr_copy(m_tmp_no_1, m_quench_t)
-         CALL dbcsr_multiply("N", "N", &
+         CALL cp_dbcsr_multiply("N", "N", &
                              penalty_occ_vol_prefactor, &
                              m_ST, &
                              m_siginv, &
@@ -6181,7 +6182,7 @@ CONTAINS
          !!CALL dbcsr_copy(m_tmp_no_1, m_ST, keep_sparsity=.TRUE.)
          !!CALL dbcsr_add(m_tmp_no_2, m_tmp_no_1, 1.0_dp, -penalty_occ_vol_prefactor)
          !!CALL dbcsr_copy(m_tmp_no_1, m_quench_t)
-         !!CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         !!CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
          !!                    m_tmp_no_2, &
          !!                    m_sig_sqrti_ii, &
          !!                    0.0_dp, m_tmp_no_1, &
@@ -6189,7 +6190,7 @@ CONTAINS
 
          ! slower way of taking the norm into account
          CALL dbcsr_copy(m_tmp_no_1, m_quench_t)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              m_tmp_no_2, &
                              m_sig_sqrti_ii, &
                              0.0_dp, m_tmp_no_1, &
@@ -6197,7 +6198,7 @@ CONTAINS
 
          ! get [tr(T).G]_ii
          CALL dbcsr_copy(m_tmp_oo_1, m_sig_sqrti_ii)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              m_t, &
                              m_tmp_no_2, &
                              0.0_dp, m_tmp_oo_1, &
@@ -6210,12 +6211,12 @@ CONTAINS
          CALL dbcsr_set_diag(m_tmp_oo_1, tg_diagonal)
          DEALLOCATE (tg_diagonal)
 
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              m_sig_sqrti_ii, &
                              m_tmp_oo_1, &
                              0.0_dp, m_tmp_oo_2, &
                              filter_eps=eps_filter)
-         CALL dbcsr_multiply("N", "N", -1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                              m_ST, &
                              m_tmp_oo_2, &
                              1.0_dp, m_tmp_no_1, &
@@ -6231,12 +6232,12 @@ CONTAINS
       IF (assume_t0_q0x) THEN
          IF (special_case .EQ. xalmo_case_fully_deloc) THEN
             CALL dbcsr_copy(m_grad_out, m_tmp_no_1)
-            CALL dbcsr_multiply("T", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                 m_t0, &
                                 m_grad_out, &
                                 0.0_dp, m_tmp_oo_1, &
                                 filter_eps=eps_filter)
-            CALL dbcsr_multiply("N", "N", -1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                                 m_STsiginv0, &
                                 m_tmp_oo_1, &
                                 1.0_dp, m_grad_out, &
@@ -6262,20 +6263,20 @@ CONTAINS
       END IF
 
       !! check whether the gradient lies entirely in R or Q
-      !CALL dbcsr_multiply("T","N",1.0_dp,&
+      !CALL cp_dbcsr_multiply("T","N",1.0_dp,&
       !        m_t,&
       !        m_tmp_no_1,&
       !        0.0_dp,m_tmp_oo_1,&
       !        filter_eps=eps_filter,&
       !        )
-      !CALL dbcsr_multiply("N","N",1.0_dp,&
+      !CALL cp_dbcsr_multiply("N","N",1.0_dp,&
       !        m_siginv,&
       !        m_tmp_oo_1,&
       !        0.0_dp,m_tmp_oo_2,&
       !        filter_eps=eps_filter,&
       !        )
       !CALL dbcsr_copy(m_tmp_no_2,m_tmp_no_1)
-      !CALL dbcsr_multiply("N","N",-1.0_dp,&
+      !CALL cp_dbcsr_multiply("N","N",-1.0_dp,&
       !        m_ST,&
       !        m_tmp_oo_2,&
       !        1.0_dp,m_tmp_no_2,&
@@ -6511,14 +6512,14 @@ CONTAINS
 
          DO reim = 1, SIZE(m_B0, 1) ! this loop is over Re/Im
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_B0(reim, idim0), &
                                 m_theta_normalized, &
                                 0.0_dp, tempOccOcc1, &
                                 filter_eps=eps_filter)
             CALL dbcsr_set(tempOccOcc2, 0.0_dp)
             CALL dbcsr_add_on_diag(tempOccOcc2, 1.0_dp)
-            CALL dbcsr_multiply("T", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                 m_theta_normalized, &
                                 tempOccOcc1, &
                                 0.0_dp, tempOccOcc2, &
@@ -6548,13 +6549,13 @@ CONTAINS
       DEALLOCATE (z2)
       DEALLOCATE (reim_diag)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_S0, &
                           m_theta_normalized, &
                           0.0_dp, tempOccOcc1, &
                           filter_eps=eps_filter)
       ! compute current sigma
-      CALL dbcsr_multiply("T", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                           m_theta_normalized, &
                           tempOccOcc1, &
                           0.0_dp, m_sigma, &
@@ -6641,7 +6642,7 @@ CONTAINS
          CALL dbcsr_set(m_temp_oo_2, 0.0_dp) ! accumulate index gradient here
          DO reim = 1, SIZE(m_B0, 1) ! this loop is over Re/Im
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_B0(reim, idim0), &
                                 m_theta_normalized, &
                                 0.0_dp, m_temp_oo_3, &
@@ -6649,7 +6650,7 @@ CONTAINS
 
             ! result contain Re/Im part of Z for the current Miller index
             ! warning - save time by computing only the diagonal elements
-            CALL dbcsr_multiply("T", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                 m_theta_normalized, &
                                 m_temp_oo_3, &
                                 0.0_dp, m_temp_oo_4, &
@@ -6662,7 +6663,7 @@ CONTAINS
             !CALL para_group%sum(tg_diagonal)
             z2(:) = z2(:) + tg_diagonal(:)*tg_diagonal(:)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_temp_oo_3, &
                                 m_temp_oo_4, &
                                 1.0_dp, m_temp_oo_2, &
@@ -6685,7 +6686,7 @@ CONTAINS
          ! TODO: print this matrix to make sure its block structure is fine
          ! and there are no unecessary elements
 
-         CALL dbcsr_multiply("N", "N", 4.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 4.0_dp, &
                              m_temp_oo_2, &
                              m_temp_oo_3, &
                              1.0_dp, m_temp_oo_1, &
@@ -6695,7 +6696,7 @@ CONTAINS
       DEALLOCATE (z2)
 
       ! sigma0.a_norm is necessary for the volume penalty and normalization
-      CALL dbcsr_multiply("N", "N", &
+      CALL cp_dbcsr_multiply("N", "N", &
                           1.0_dp, &
                           m_S0, &
                           m_theta_normalized, &
@@ -6704,7 +6705,7 @@ CONTAINS
 
       ! add gradient of the penalty functional log[det(sigma)]
       ! G = 2*prefactor*sigma0.a_norm.sigma_inv
-      CALL dbcsr_multiply("N", "N", &
+      CALL cp_dbcsr_multiply("N", "N", &
                           1.0_dp, &
                           m_temp_oo_2, &
                           m_siginv, &
@@ -6721,7 +6722,7 @@ CONTAINS
       ! take into account the factor from the normalization constraint
       ! G = ( G - sigma0.a_norm.[tr(a_norm).G]_ii ) . [sig_sqrti]_ii
       ! 1. get G.[sig_sqrti]_ii
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_temp_oo_1, &
                           m_sig_sqrti_ii, &
                           0.0_dp, m_grad_out, &
@@ -6729,7 +6730,7 @@ CONTAINS
 
       ! 2. get [tr(a_norm).G]_ii
       ! it is possible to save time by computing only the diagonal elements
-      CALL dbcsr_multiply("T", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                           m_theta_normalized, &
                           m_temp_oo_1, &
                           0.0_dp, m_temp_oo_3, &
@@ -6740,13 +6741,13 @@ CONTAINS
 
       ! 3. [X]_ii . [sig_sqrti]_ii
       ! it is possible to save time by computing only the diagonal elements
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_sig_sqrti_ii, &
                           m_temp_oo_3, &
                           0.0_dp, m_temp_oo_1, &
                           filter_eps=eps_filter)
       ! 4. (sigma0*a_norm) .[X]_ii
-      CALL dbcsr_multiply("N", "N", -1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                           m_temp_oo_2, &
                           m_temp_oo_1, &
                           1.0_dp, m_grad_out, &
@@ -6867,12 +6868,12 @@ CONTAINS
       ! project out R_0
       IF (assume_t0_q0x) THEN
          IF (special_case .EQ. xalmo_case_fully_deloc) THEN
-            CALL dbcsr_multiply("T", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                 m_STsiginv0, &
                                 m_t_out, &
                                 0.0_dp, m_tmp_oo_1, &
                                 filter_eps=eps_filter)
-            CALL dbcsr_multiply("N", "N", -1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                                 m_t0, &
                                 m_tmp_oo_1, &
                                 1.0_dp, m_t_out, &
@@ -7015,7 +7016,7 @@ CONTAINS
       ! RZK-warning: further optimization is ABSOLUTELY NECESSARY
 
       ! First S-SRS
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_ST, &
                           m_siginv, &
                           0.0_dp, m_tmp_no_3, &
@@ -7028,7 +7029,7 @@ CONTAINS
       IF (special_case .EQ. xalmo_case_fully_deloc) THEN
          ! use S instead of S-SRS
       ELSE
-         CALL dbcsr_multiply("N", "T", -1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "T", -1.0_dp, &
                              m_ST, &
                              m_tmp_no_3, &
                              1.0_dp, m_tmp_nn_1, &
@@ -7043,22 +7044,22 @@ CONTAINS
       ! re-create matrix because desymmetrize is buggy -
       ! it will create multiple copies of blocks
       CALL dbcsr_desymmetrize(m_ks, m_prec_out)
-      CALL dbcsr_multiply("N", "T", -1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "T", -1.0_dp, &
                           m_FTsiginv, &
                           m_ST, &
                           1.0_dp, m_prec_out, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "T", -1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "T", -1.0_dp, &
                           m_ST, &
                           m_FTsiginv, &
                           1.0_dp, m_prec_out, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           m_ST, &
                           m_siginvTFTsiginv, &
                           0.0_dp, m_tmp_no_3, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "T", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                           m_tmp_no_3, &
                           m_ST, &
                           1.0_dp, m_prec_out, &
@@ -7203,17 +7204,17 @@ CONTAINS
       !!!DESYM!        matrix_type=dbcsr_type_no_symmetry)
       !!!DESYM!CALL dbcsr_desymmetrize(almo_scf_env%matrix_s(1),&
       !!!DESYM!        prec_vv)
-      !CALL dbcsr_multiply("N","N",1.0_dp,&
+      !CALL cp_dbcsr_multiply("N","N",1.0_dp,&
       !        almo_scf_env%matrix_s(1),&
       !        matrix_t_out(ispin),&
       !        0.0_dp,m_tmp_no_1,&
       !        filter_eps=almo_scf_env%eps_filter)
-      !CALL dbcsr_multiply("N","N",1.0_dp,&
+      !CALL cp_dbcsr_multiply("N","N",1.0_dp,&
       !        m_tmp_no_1,&
       !        almo_scf_env%matrix_sigma_inv(ispin),&
       !        0.0_dp,m_tmp_no_3,&
       !        filter_eps=almo_scf_env%eps_filter)
-      !CALL dbcsr_multiply("N","T",-1.0_dp,&
+      !CALL cp_dbcsr_multiply("N","T",-1.0_dp,&
       !        m_tmp_no_3,&
       !        m_tmp_no_1,&
       !        1.0_dp,prec_vv,&
@@ -7584,7 +7585,7 @@ CONTAINS
          ! compute the full "gradient" - it is necessary to
          ! evaluate Hessian.X
          CALL dbcsr_copy(m_f_vo(ispin), m_FTsiginv(ispin))
-         CALL dbcsr_multiply("N", "N", -1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                              m_ST(ispin), &
                              m_siginvTFTsiginv(ispin), &
                              1.0_dp, m_f_vo(ispin), &
@@ -7676,7 +7677,7 @@ CONTAINS
                IF (special_case .EQ. xalmo_case_block_diag .OR. &
                    special_case .EQ. xalmo_case_fully_deloc) THEN
 
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                       m_prec(ispin), &
                                       m_residue(ispin), &
                                       0.0_dp, m_zet(ispin), &
@@ -7803,7 +7804,7 @@ CONTAINS
                      IF (special_case .EQ. xalmo_case_block_diag .OR. &
                          special_case .EQ. xalmo_case_fully_deloc) THEN
 
-                        CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                        CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                             m_prec(ispin), &
                                             m_residue(ispin), &
                                             0.0_dp, m_zet(ispin), &
@@ -7907,18 +7908,18 @@ CONTAINS
          CALL dbcsr_create(m_tmp_oo_2, &
                            template=m_siginv(ispin), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              m_ST(ispin), &
                              m_delta(ispin), &
                              0.0_dp, m_tmp_oo_1, &
                              filter_eps=eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              m_siginv(ispin), &
                              m_tmp_oo_1, &
                              0.0_dp, m_tmp_oo_2, &
                              filter_eps=eps_filter)
          CALL dbcsr_copy(m_zet(ispin), m_quench_t(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              m_t(ispin), &
                              m_tmp_oo_2, &
                              0.0_dp, m_zet(ispin), &
@@ -8073,7 +8074,7 @@ CONTAINS
 
             ! get [tr(T).HD]_ii
             CALL dbcsr_copy(m_tmp_oo_1, m_sig_sqrti_ii(ispin))
-            CALL dbcsr_multiply("T", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                 m_x_in(ispin), &
                                 m_ST(ispin), &
                                 0.0_dp, m_tmp_oo_1, &
@@ -8086,12 +8087,12 @@ CONTAINS
             DEALLOCATE (tg_diagonal)
 
             CALL dbcsr_copy(m_tmp_no_1, m_x_in(ispin))
-            CALL dbcsr_multiply("N", "N", -1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                                 m_t(ispin), &
                                 m_tmp_oo_1, &
                                 1.0_dp, m_tmp_no_1, &
                                 filter_eps=eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_tmp_no_1, &
                                 m_sig_sqrti_ii(ispin), &
                                 0.0_dp, m_tmp_x_in, &
@@ -8112,32 +8113,32 @@ CONTAINS
 ! magical fix for the negative definite problem
 ! (since penalty_prefactor_local<0 the coeff before S_vv must
 ! be multiplied by -1 to take the step in the right direction)
-!CALL dbcsr_multiply("N","N",-4.0_dp*penalty_prefactor_local,&
+!CALL cp_dbcsr_multiply("N","N",-4.0_dp*penalty_prefactor_local,&
 !        m_s_vv(ispin),&
 !        m_tmp_x_in,&
 !        0.0_dp,m_tmp_no_1,&
 !        filter_eps=eps_filter)
 !CALL dbcsr_copy(m_x_out(ispin),m_quench_t(ispin))
-!CALL dbcsr_multiply("N","N",1.0_dp,&
+!CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !        m_tmp_no_1,&
 !        m_siginv(ispin),&
 !        0.0_dp,m_x_out(ispin),&
 !        retain_sparsity=.TRUE.)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_s(1), &
                                 m_tmp_x_in, &
                                 0.0_dp, m_tmp_no_1, &
                                 filter_eps=eps_filter)
             CALL dbcsr_copy(m_x_out(ispin), m_quench_t(ispin))
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_tmp_no_1, &
                                 m_siginv(ispin), &
                                 0.0_dp, m_x_out(ispin), &
                                 retain_sparsity=.TRUE.)
 
 !CALL dbcsr_copy(m_x_out(ispin),m_quench_t(ispin))
-!CALL dbcsr_multiply("N","N",1.0_dp,&
+!CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !        m_s(1),&
 !        m_tmp_x_in,&
 !        0.0_dp,m_x_out(ispin),&
@@ -8147,14 +8148,14 @@ CONTAINS
 
             ! debugging: only vv matrices, oo matrices are kronecker
             CALL dbcsr_copy(m_x_out(ispin), m_quench_t(ispin))
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_ks_vv(ispin), &
                                 m_tmp_x_in, &
                                 0.0_dp, m_x_out(ispin), &
                                 retain_sparsity=.TRUE.)
 
             CALL dbcsr_copy(m_tmp_no_2, m_quench_t(ispin))
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_s_vv(ispin), &
                                 m_tmp_x_in, &
                                 0.0_dp, m_tmp_no_2, &
@@ -8164,14 +8165,14 @@ CONTAINS
 #endif
 
 !          ! F_vv.X.S_oo
-!          CALL dbcsr_multiply("N","N",1.0_dp,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !                  m_ks_vv(ispin),&
 !                  m_tmp_x_in,&
 !                  0.0_dp,m_tmp_no_1,&
 !                  filter_eps=eps_filter,&
 !                  )
 !          CALL dbcsr_copy(m_x_out(ispin),m_quench_t(ispin))
-!          CALL dbcsr_multiply("N","N",1.0_dp,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !                  m_tmp_no_1,&
 !                  m_siginv(ispin),&
 !                  0.0_dp,m_x_out(ispin),&
@@ -8179,14 +8180,14 @@ CONTAINS
 !                  )
 !
 !          ! S_vv.X.F_oo
-!          CALL dbcsr_multiply("N","N",1.0_dp,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !                  m_s_vv(ispin),&
 !                  m_tmp_x_in,&
 !                  0.0_dp,m_tmp_no_1,&
 !                  filter_eps=eps_filter,&
 !                  )
 !          CALL dbcsr_copy(m_tmp_no_2,m_quench_t(ispin))
-!          CALL dbcsr_multiply("N","N",1.0_dp,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !                  m_tmp_no_1,&
 !                  m_siginvTFTsiginv(ispin),&
 !                  0.0_dp,m_tmp_no_2,&
@@ -8198,14 +8199,14 @@ CONTAINS
 !!  and STsiginv terms)
 !
 !         ! S_vo.X^t.F_vo
-!          CALL dbcsr_multiply("T","N",1.0_dp,&
+!          CALL cp_dbcsr_multiply("T","N",1.0_dp,&
 !                  m_tmp_x_in,&
 !                  m_g_full(ispin),&
 !                  0.0_dp,m_tmp_oo_1,&
 !                  filter_eps=eps_filter,&
 !                  )
 !          CALL dbcsr_copy(m_tmp_no_2,m_quench_t(ispin))
-!          CALL dbcsr_multiply("N","N",1.0_dp,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !                  m_STsiginv(ispin),&
 !                  m_tmp_oo_1,&
 !                  0.0_dp,m_tmp_no_2,&
@@ -8215,14 +8216,14 @@ CONTAINS
 !                  1.0_dp,-1.0_dp)
 !
 !          ! S_vo.X^t.F_vo
-!          CALL dbcsr_multiply("T","N",1.0_dp,&
+!          CALL cp_dbcsr_multiply("T","N",1.0_dp,&
 !                  m_tmp_x_in,&
 !                  m_STsiginv(ispin),&
 !                  0.0_dp,m_tmp_oo_1,&
 !                  filter_eps=eps_filter,&
 !                  )
 !          CALL dbcsr_copy(m_tmp_no_2,m_quench_t(ispin))
-!          CALL dbcsr_multiply("N","N",1.0_dp,&
+!          CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !                  m_g_full(ispin),&
 !                  m_tmp_oo_1,&
 !                  0.0_dp,m_tmp_no_2,&
@@ -8249,7 +8250,7 @@ CONTAINS
 
             ! get [tr(T).HD]_ii
             CALL dbcsr_copy(m_tmp_oo_1, m_sig_sqrti_ii(ispin))
-            CALL dbcsr_multiply("T", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                                 m_t(ispin), &
                                 m_x_out(ispin), &
                                 0.0_dp, m_tmp_oo_1, &
@@ -8261,13 +8262,13 @@ CONTAINS
             CALL dbcsr_set_diag(m_tmp_oo_1, tg_diagonal)
             DEALLOCATE (tg_diagonal)
 
-            CALL dbcsr_multiply("N", "N", -1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", -1.0_dp, &
                                 m_ST(ispin), &
                                 m_tmp_oo_1, &
                                 1.0_dp, m_x_out(ispin), &
                                 retain_sparsity=.TRUE.)
             CALL dbcsr_copy(m_tmp_no_1, m_x_out(ispin))
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 m_tmp_no_1, &
                                 m_sig_sqrti_ii(ispin), &
                                 0.0_dp, m_x_out(ispin), &
@@ -8756,7 +8757,7 @@ CONTAINS
 !S-1.G         para_env=para_env,&
 !S-1.G         blacs_env=blacs_env,&
 !S-1.G         upper_to_full=.TRUE.)
-!S-1.G CALL dbcsr_multiply("N","N",1.0_dp,&
+!S-1.G CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !S-1.G         m_prec_out,&
 !S-1.G         matrix_grad,&
 !S-1.G         0.0_dp,matrix_step,&
@@ -9005,7 +9006,7 @@ CONTAINS
 !S-1.G CALL dbcsr_create(m_tmp_no_1,&
 !S-1.G         template=matrix_step,&
 !S-1.G         matrix_type=dbcsr_type_no_symmetry)
-!S-1.G CALL dbcsr_multiply("N","N",1.0_dp,&
+!S-1.G CALL cp_dbcsr_multiply("N","N",1.0_dp,&
 !S-1.G         m_prec_out,&
 !S-1.G         matrix_step,&
 !S-1.G         0.0_dp,m_tmp_no_1,&
@@ -9022,7 +9023,7 @@ CONTAINS
                         template=quench_t, &
                         matrix_type=dbcsr_type_no_symmetry)
       CALL dbcsr_copy(matrix_S_ao_sym, quench_t)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           matrix_F_ao, &
                           matrix_step, &
                           0.0_dp, matrix_S_ao_sym, &
@@ -9031,7 +9032,7 @@ CONTAINS
                         template=quench_t, &
                         matrix_type=dbcsr_type_no_symmetry)
       CALL dbcsr_copy(matrix_F_ao_sym, quench_t)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           matrix_S_ao, &
                           matrix_step, &
                           0.0_dp, matrix_F_ao_sym, &
@@ -9471,7 +9472,7 @@ CONTAINS
                 my_special_case .EQ. xalmo_case_fully_deloc) THEN
 
                IF (unit_nr > 0 .AND. debug_mode) WRITE (unit_nr, *) "...Multiply Sinv.r"
-               CALL dbcsr_multiply("N", "N", 1.0_dp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                    m_s_inv, &
                                    m_model_r(ispin), &
                                    0.0_dp, m_model_rt(ispin), &
@@ -9566,7 +9567,7 @@ CONTAINS
                IF (my_special_case .EQ. xalmo_case_block_diag .OR. &
                    my_special_case .EQ. xalmo_case_fully_deloc) THEN
 
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                       m_model_hessian(ispin), &
                                       m_model_d(ispin), &
                                       0.0_dp, m_model_Bd(ispin), &
@@ -9856,7 +9857,7 @@ CONTAINS
                   IF (my_special_case .EQ. xalmo_case_block_diag .OR. &
                       my_special_case .EQ. xalmo_case_fully_deloc) THEN
 
-                     CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                     CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                          m_model_hessian_inv(ispin), &
                                          m_model_r(ispin), &
                                          0.0_dp, m_model_Bd(ispin), &
@@ -10044,7 +10045,7 @@ CONTAINS
                IF (my_special_case .EQ. xalmo_case_block_diag .OR. &
                    my_special_case .EQ. xalmo_case_fully_deloc) THEN
 
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                       m_s_inv, &
                                       m_model_r(ispin), &
                                       0.0_dp, m_model_rt(ispin), &
@@ -10496,7 +10497,7 @@ CONTAINS
                              nfullcols_total=nocc(ispin))
 
          CALL dbcsr_copy(m_temp_no(ispin), quench_t_in(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              metric_in(1), &
                              position_in(ispin), &
                              0.0_dp, m_temp_no(ispin), &
@@ -10507,7 +10508,7 @@ CONTAINS
          CALL dbcsr_dot(direction_in(ispin), m_temp_no(ispin), temp_real)
          coef(2) = coef(2) + 2.0_dp*temp_real/nocc(ispin)
          CALL dbcsr_copy(m_temp_no(ispin), quench_t_in(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              metric_in(1), &
                              direction_in(ispin), &
                              0.0_dp, m_temp_no(ispin), &
@@ -10601,7 +10602,7 @@ CONTAINS
                              nfullcols_total=nocc(ispin))
 
          CALL dbcsr_copy(m_temp_no(ispin), quench_t_in(ispin))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              metric_in(1), &
                              matrix_in(ispin), &
                              0.0_dp, m_temp_no(ispin), &
@@ -10682,7 +10683,7 @@ CONTAINS
          IF (special_case .EQ. xalmo_case_block_diag .OR. &
              special_case .EQ. xalmo_case_fully_deloc) THEN
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                                 hess_in(ispin), &
                                 step_in(ispin), &
                                 0.0_dp, m_temp_no(ispin), &

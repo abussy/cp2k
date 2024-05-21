@@ -12,6 +12,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE qs_active_space_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_kind_types, ONLY: atomic_kind_type
    USE basis_set_types, ONLY: allocate_sto_basis_set, &
                               create_gto_from_sto_basis, &
@@ -1536,7 +1537,7 @@ CONTAINS
                                              calculate_forces=.FALSE., compute_tau=.FALSE., gapw=.FALSE., &
                                              pw_env_external=pw_env_sub, task_list_external=task_list_sub)
 
-                     CALL dbcsr_multiply("N", "N", 1.0_dp, mat_munu%matrix, mo_coeff_as(isp2), &
+                     CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mat_munu%matrix, mo_coeff_as(isp2), &
                                          0.0_dp, matrix_pq_rnu(isp2), filter_eps=eri_env%eri_gpw%eps_filter)
                      CALL copy_dbcsr_to_fm(matrix_pq_rnu(isp2), fm_matrix_pq_rnu(isp2))
 

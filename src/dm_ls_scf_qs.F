@@ -13,6 +13,7 @@
 !> \author Joost VandeVondele
 ! **************************************************************************************************
 MODULE dm_ls_scf_qs
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_kind_types,               ONLY: atomic_kind_type
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_cp2k_link,              ONLY: cp_dbcsr_alloc_block_from_nbl
@@ -238,8 +239,8 @@ CONTAINS
          IF (covariant) matrix_trafo => ls_mstruct%matrix_B ! co-variant
          CALL dbcsr_create(matrix_tmp, template=matrix_trafo)
 
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_qs, matrix_trafo, 0.0_dp, matrix_tmp)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, matrix_trafo, matrix_tmp, 0.0_dp, matrix_pao)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_qs, matrix_trafo, 0.0_dp, matrix_tmp)
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, matrix_trafo, matrix_tmp, 0.0_dp, matrix_pao)
          CALL dbcsr_release(matrix_tmp)
 
          CALL matrix_cluster(matrix_ls, matrix_pao, ls_mstruct)
@@ -347,8 +348,8 @@ CONTAINS
          IF (covariant) matrix_trafo => ls_mstruct%matrix_A ! co-variant
          CALL dbcsr_create(matrix_tmp1, template=matrix_trafo)
          CALL dbcsr_create(matrix_tmp2, template=matrix_qs)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_trafo, matrix_declustered, 0.0_dp, matrix_tmp1)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp1, matrix_trafo, 0.0_dp, matrix_tmp2)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_trafo, matrix_declustered, 0.0_dp, matrix_tmp1)
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_tmp1, matrix_trafo, 0.0_dp, matrix_tmp2)
          IF (my_keep_sparsity) THEN
             CALL dbcsr_copy_into_existing(matrix_qs, matrix_tmp2) ! preserve sparsity of matrix_qs
          ELSE

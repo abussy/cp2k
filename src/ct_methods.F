@@ -12,6 +12,7 @@
 !> \author Rustam Z Khaliullin
 ! **************************************************************************************************
 MODULE ct_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert
    USE cp_dbcsr_diag,                   ONLY: cp_dbcsr_syevd
@@ -176,10 +177,10 @@ CONTAINS
                ! bring x from contravariant-covariant representation
                ! to the orthogonal/cholesky representation
                ! use res as temporary storage
-               CALL dbcsr_multiply("N", "N", 1.0_dp, cts_env%q_index_down, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, cts_env%q_index_down, &
                                    cts_env%matrix_x, 0.0_dp, cts_env%matrix_res, &
                                    filter_eps=cts_env%eps_filter)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, cts_env%matrix_res, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, cts_env%matrix_res, &
                                    cts_env%p_index_up, 0.0_dp, &
                                    cts_env%matrix_x, &
                                    filter_eps=cts_env%eps_filter)
@@ -320,7 +321,7 @@ CONTAINS
             ! transform all riccati matrices (left-right preconditioner)
             CALL dbcsr_create(tmp1, template=matrix_qq, &
                               matrix_type=dbcsr_type_no_symmetry)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, u_qq, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, u_qq, &
                                 matrix_qq, 0.0_dp, tmp1, &
                                 filter_eps=cts_env%eps_filter)
             CALL dbcsr_copy(matrix_qq, tmp1)
@@ -328,7 +329,7 @@ CONTAINS
 
             CALL dbcsr_create(tmp1, template=matrix_pp, &
                               matrix_type=dbcsr_type_no_symmetry)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_pp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_pp, &
                                 u_pp, 0.0_dp, tmp1, &
                                 filter_eps=cts_env%eps_filter)
             CALL dbcsr_copy(matrix_pp, tmp1)
@@ -340,10 +341,10 @@ CONTAINS
 
             CALL dbcsr_create(tmp1, template=matrix_qp, &
                               matrix_type=dbcsr_type_no_symmetry)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_qp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_qp, &
                                 u_pp, 0.0_dp, tmp1, &
                                 filter_eps=cts_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, u_qq, tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, u_qq, tmp1, &
                                 0.0_dp, matrix_qp, &
                                 filter_eps=cts_env%eps_filter)
             CALL dbcsr_release(tmp1)
@@ -418,7 +419,7 @@ CONTAINS
                               template=oo1)
 
             ! Compute (1+tr(X).X)^(-1/2)_up_down
-            CALL dbcsr_multiply("T", "N", 1.0_dp, cts_env%matrix_x, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, cts_env%matrix_x, &
                                 cts_env%matrix_x, 0.0_dp, oo1, &
                                 filter_eps=cts_env%eps_filter)
             CALL dbcsr_add_on_diag(oo1, 1.0_dp)
@@ -433,10 +434,10 @@ CONTAINS
                                            order=cts_env%order_lanczos, &
                                            eps_lanczos=cts_env%eps_lancsoz, &
                                            max_iter_lanczos=cts_env%max_iter_lanczos)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, cts_env%p_index_up, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, cts_env%p_index_up, &
                                 oo1_sqrt_inv, 0.0_dp, oo1, &
                                 filter_eps=cts_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, oo1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, oo1, &
                                 cts_env%p_index_down, 0.0_dp, oo1_sqrt, &
                                 filter_eps=cts_env%eps_filter)
             CALL dbcsr_release(oo1)
@@ -446,10 +447,10 @@ CONTAINS
             CALL dbcsr_create(matrix_qp, &
                               template=cts_env%matrix_qp_template, &
                               matrix_type=dbcsr_type_no_symmetry)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, cts_env%q_index_up, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, cts_env%q_index_up, &
                                 cts_env%matrix_x, 0.0_dp, matrix_qp, &
                                 filter_eps=cts_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_qp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_qp, &
                                 cts_env%p_index_down, 0.0_dp, &
                                 cts_env%matrix_x, &
                                 filter_eps=cts_env%eps_filter)
@@ -458,7 +459,7 @@ CONTAINS
             ! update T=T+X or T=T+V.X (whichever is appropriate)
             CALL dbcsr_create(t_corr, template=cts_env%matrix_t)
             IF (cts_env%use_virt_orbs) THEN
-               CALL dbcsr_multiply("N", "N", 1.0_dp, cts_env%matrix_v, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, cts_env%matrix_v, &
                                    cts_env%matrix_x, 0.0_dp, t_corr, &
                                    filter_eps=cts_env%eps_filter)
                CALL dbcsr_add(cts_env%matrix_t, t_corr, &
@@ -468,7 +469,7 @@ CONTAINS
                               1.0_dp, 1.0_dp)
             END IF
             ! adjust T so the metric is preserved: T=(T+X).(1+tr(X).X)^(-1/2)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, cts_env%matrix_t, oo1_sqrt, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, cts_env%matrix_t, oo1_sqrt, &
                                 0.0_dp, t_corr, filter_eps=cts_env%eps_filter)
             CALL dbcsr_copy(cts_env%matrix_t, t_corr)
 
@@ -482,10 +483,10 @@ CONTAINS
                CALL dbcsr_create(matrix_qp, &
                                  template=cts_env%matrix_qp_template, &
                                  matrix_type=dbcsr_type_no_symmetry)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, cts_env%q_index_up, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, cts_env%q_index_up, &
                                    cts_env%matrix_x, 0.0_dp, matrix_qp, &
                                    filter_eps=cts_env%eps_filter)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_qp, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_qp, &
                                    cts_env%p_index_down, 0.0_dp, &
                                    cts_env%matrix_x, &
                                    filter_eps=cts_env%eps_filter)
@@ -546,32 +547,32 @@ CONTAINS
          ! orthogonalize the orbitals
          CALL dbcsr_create(t_or, template=t)
          CALL dbcsr_create(v_or, template=v)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, t, p_index_up, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, t, p_index_up, &
                              0.0_dp, t_or, filter_eps=eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, v, q_index_up, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, v, q_index_up, &
                              0.0_dp, v_or, filter_eps=eps_filter)
 
          ! KS.T
          CALL dbcsr_create(kst, template=t)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ks, t_or, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ks, t_or, &
                              0.0_dp, kst, filter_eps=eps_filter)
          ! pp=tr(T)*KS.T
-         CALL dbcsr_multiply("T", "N", 1.0_dp, t_or, kst, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, t_or, kst, &
                              0.0_dp, pp, filter_eps=eps_filter)
          ! qp=tr(V)*KS.T
-         CALL dbcsr_multiply("T", "N", 1.0_dp, v_or, kst, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, v_or, kst, &
                              0.0_dp, qp, filter_eps=eps_filter)
          CALL dbcsr_release(kst)
 
          ! KS.V
          CALL dbcsr_create(ksv, template=v)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ks, v_or, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ks, v_or, &
                              0.0_dp, ksv, filter_eps=eps_filter)
          ! tr(T)*KS.V
-         CALL dbcsr_multiply("T", "N", 1.0_dp, t_or, ksv, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, t_or, ksv, &
                              0.0_dp, pq, filter_eps=eps_filter)
          ! tr(V)*KS.V
-         CALL dbcsr_multiply("T", "N", 1.0_dp, v_or, ksv, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, v_or, ksv, &
                              0.0_dp, qq, filter_eps=eps_filter)
          CALL dbcsr_release(ksv)
 
@@ -587,13 +588,13 @@ CONTAINS
                            matrix_type=dbcsr_type_no_symmetry)
 
          ! qp=KS*T
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ks, t, 0.0_dp, qp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ks, t, 0.0_dp, qp, &
                              filter_eps=eps_filter)
          ! pp=tr(T)*KS.T
-         CALL dbcsr_multiply("T", "N", 1.0_dp, t, qp, 0.0_dp, pp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, t, qp, 0.0_dp, pp, &
                              filter_eps=eps_filter)
          ! sp=-S_*P
-         CALL dbcsr_multiply("N", "N", -1.0_dp, q_index_down, p, 0.0_dp, sp, &
+         CALL cp_dbcsr_multiply("N", "N", -1.0_dp, q_index_down, p, 0.0_dp, sp, &
                              filter_eps=eps_filter)
 
          ! sp=1/S^-S_.P
@@ -609,11 +610,11 @@ CONTAINS
          END SELECT
 
          ! spf=(1/S^-S_.P)*KS
-         CALL dbcsr_multiply("N", "N", 1.0_dp, sp, ks, 0.0_dp, spf, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, sp, ks, 0.0_dp, spf, &
                              filter_eps=eps_filter)
 
          ! qp=spf*T
-         CALL dbcsr_multiply("N", "N", 1.0_dp, spf, t, 0.0_dp, qp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, spf, t, 0.0_dp, qp, &
                              filter_eps=eps_filter)
 
          SELECT CASE (tensor_type)
@@ -622,7 +623,7 @@ CONTAINS
             CALL dbcsr_transposed(pq, qp, transpose_distribution=.FALSE.)
          CASE (tensor_orthogonal)
             ! pq=sig^.tr(qp)
-            CALL dbcsr_multiply("N", "T", 1.0_dp, p_index_up, qp, 0.0_dp, pq, &
+            CALL cp_dbcsr_multiply("N", "T", 1.0_dp, p_index_up, qp, 0.0_dp, pq, &
                                 filter_eps=eps_filter)
             library_fixed = .FALSE.
             IF (library_fixed) THEN
@@ -630,7 +631,7 @@ CONTAINS
             ELSE
                CALL dbcsr_create(no, template=qp, &
                                  matrix_type=dbcsr_type_no_symmetry)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, qp, p_index_up, 0.0_dp, no, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, qp, p_index_up, 0.0_dp, no, &
                                    filter_eps=eps_filter)
                CALL dbcsr_copy(qp, no)
                CALL dbcsr_release(no)
@@ -638,7 +639,7 @@ CONTAINS
          END SELECT
 
          ! qq=spf*tr(sp)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, spf, sp, 0.0_dp, qq, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, spf, sp, 0.0_dp, qq, &
                              filter_eps=eps_filter)
 
          SELECT CASE (tensor_type)
@@ -650,16 +651,16 @@ CONTAINS
                               matrix_type=dbcsr_type_no_symmetry)
 
             ! first index up
-            CALL dbcsr_multiply("N", "N", 1.0_dp, q_index_up, qq, 0.0_dp, spf, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, q_index_up, qq, 0.0_dp, spf, &
                                 filter_eps=eps_filter)
             CALL dbcsr_copy(qq, spf)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, q_index_up, qp, 0.0_dp, no, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, q_index_up, qp, 0.0_dp, no, &
                                 filter_eps=eps_filter)
             CALL dbcsr_copy(qp, no)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, p_index_up, pp, 0.0_dp, oo, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, p_index_up, pp, 0.0_dp, oo, &
                                 filter_eps=eps_filter)
             CALL dbcsr_copy(pp, oo)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, p_index_up, pq, 0.0_dp, on, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, p_index_up, pq, 0.0_dp, on, &
                                 filter_eps=eps_filter)
             CALL dbcsr_copy(pq, on)
 
@@ -672,9 +673,9 @@ CONTAINS
                               matrix_type=dbcsr_type_no_symmetry)
 
             ! both indeces up in the pp block
-            CALL dbcsr_multiply("N", "N", 1.0_dp, p_index_up, pp, 0.0_dp, oo, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, p_index_up, pp, 0.0_dp, oo, &
                                 filter_eps=eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, oo, p_index_up, 0.0_dp, pp, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, oo, p_index_up, 0.0_dp, pp, &
                                 filter_eps=eps_filter)
 
             CALL dbcsr_release(oo)
@@ -827,40 +828,40 @@ CONTAINS
          IF (iteration .EQ. 0) THEN
             CALL dbcsr_copy(res, qp)
             IF (present_oo) THEN
-               CALL dbcsr_multiply("N", "N", +1.0_dp, qq, x, 0.0_dp, res_trial, &
+               CALL cp_dbcsr_multiply("N", "N", +1.0_dp, qq, x, 0.0_dp, res_trial, &
                                    filter_eps=eps_filter)
-               CALL dbcsr_multiply("N", "N", +1.0_dp, res_trial, oo, 1.0_dp, res, &
+               CALL cp_dbcsr_multiply("N", "N", +1.0_dp, res_trial, oo, 1.0_dp, res, &
                                    filter_eps=eps_filter)
             ELSE
-               CALL dbcsr_multiply("N", "N", +1.0_dp, qq, x, 1.0_dp, res, &
+               CALL cp_dbcsr_multiply("N", "N", +1.0_dp, qq, x, 1.0_dp, res, &
                                    filter_eps=eps_filter)
             END IF
             IF (present_vv) THEN
-               CALL dbcsr_multiply("N", "N", -1.0_dp, x, pp, 0.0_dp, res_trial, &
+               CALL cp_dbcsr_multiply("N", "N", -1.0_dp, x, pp, 0.0_dp, res_trial, &
                                    filter_eps=eps_filter)
-               CALL dbcsr_multiply("N", "N", +1.0_dp, vv, res_trial, 1.0_dp, res, &
+               CALL cp_dbcsr_multiply("N", "N", +1.0_dp, vv, res_trial, 1.0_dp, res, &
                                    filter_eps=eps_filter)
             ELSE
-               CALL dbcsr_multiply("N", "N", -1.0_dp, x, pp, 1.0_dp, res, &
+               CALL cp_dbcsr_multiply("N", "N", -1.0_dp, x, pp, 1.0_dp, res, &
                                    filter_eps=eps_filter)
             END IF
             IF (quadratic_term) THEN
                IF (present_oo) THEN
-                  CALL dbcsr_multiply("N", "N", +1.0_dp, pq, x, 0.0_dp, oo1, &
+                  CALL cp_dbcsr_multiply("N", "N", +1.0_dp, pq, x, 0.0_dp, oo1, &
                                       filter_eps=eps_filter)
-                  CALL dbcsr_multiply("N", "N", +1.0_dp, oo1, oo, 0.0_dp, oo2, &
+                  CALL cp_dbcsr_multiply("N", "N", +1.0_dp, oo1, oo, 0.0_dp, oo2, &
                                       filter_eps=eps_filter)
                ELSE
-                  CALL dbcsr_multiply("N", "N", +1.0_dp, pq, x, 0.0_dp, oo2, &
+                  CALL cp_dbcsr_multiply("N", "N", +1.0_dp, pq, x, 0.0_dp, oo2, &
                                       filter_eps=eps_filter)
                END IF
                IF (present_vv) THEN
-                  CALL dbcsr_multiply("N", "N", -1.0_dp, x, oo2, 0.0_dp, res_trial, &
+                  CALL cp_dbcsr_multiply("N", "N", -1.0_dp, x, oo2, 0.0_dp, res_trial, &
                                       filter_eps=eps_filter)
-                  CALL dbcsr_multiply("N", "N", +1.0_dp, vv, res_trial, 1.0_dp, res, &
+                  CALL cp_dbcsr_multiply("N", "N", +1.0_dp, vv, res_trial, 1.0_dp, res, &
                                       filter_eps=eps_filter)
                ELSE
-                  CALL dbcsr_multiply("N", "N", -1.0_dp, x, oo2, 1.0_dp, res, &
+                  CALL cp_dbcsr_multiply("N", "N", -1.0_dp, x, oo2, 1.0_dp, res, &
                                       filter_eps=eps_filter)
                END IF
             END IF
@@ -883,36 +884,36 @@ CONTAINS
             IF (quadratic_term) THEN
                IF (iteration .EQ. 0) THEN
                   IF (present_oo) THEN
-                     CALL dbcsr_multiply("N", "N", -1.0_dp, pq, x, 0.0_dp, oo1, &
+                     CALL cp_dbcsr_multiply("N", "N", -1.0_dp, pq, x, 0.0_dp, oo1, &
                                          filter_eps=eps_filter)
-                     CALL dbcsr_multiply("N", "N", +1.0_dp, oo1, oo, 1.0_dp, aux1, &
+                     CALL cp_dbcsr_multiply("N", "N", +1.0_dp, oo1, oo, 1.0_dp, aux1, &
                                          filter_eps=eps_filter)
                   ELSE
-                     CALL dbcsr_multiply("N", "N", -1.0_dp, pq, x, 1.0_dp, aux1, &
+                     CALL cp_dbcsr_multiply("N", "N", -1.0_dp, pq, x, 1.0_dp, aux1, &
                                          filter_eps=eps_filter)
                   END IF
                   IF (present_vv) THEN
-                     CALL dbcsr_multiply("N", "N", -1.0_dp, vv, x, 0.0_dp, res_trial, &
+                     CALL cp_dbcsr_multiply("N", "N", -1.0_dp, vv, x, 0.0_dp, res_trial, &
                                          filter_eps=eps_filter)
-                     CALL dbcsr_multiply("N", "N", +1.0_dp, res_trial, pq, 1.0_dp, aux2, &
+                     CALL cp_dbcsr_multiply("N", "N", +1.0_dp, res_trial, pq, 1.0_dp, aux2, &
                                          filter_eps=eps_filter)
                   ELSE
-                     CALL dbcsr_multiply("N", "N", -1.0_dp, x, pq, 1.0_dp, aux2, &
+                     CALL cp_dbcsr_multiply("N", "N", -1.0_dp, x, pq, 1.0_dp, aux2, &
                                          filter_eps=eps_filter)
                   END IF
                ELSE
                   IF (present_oo) THEN
-                     CALL dbcsr_multiply("N", "N", -best_step_size, pq, step_oo, 1.0_dp, aux1, &
+                     CALL cp_dbcsr_multiply("N", "N", -best_step_size, pq, step_oo, 1.0_dp, aux1, &
                                          filter_eps=eps_filter)
                   ELSE
-                     CALL dbcsr_multiply("N", "N", -best_step_size, pq, step, 1.0_dp, aux1, &
+                     CALL cp_dbcsr_multiply("N", "N", -best_step_size, pq, step, 1.0_dp, aux1, &
                                          filter_eps=eps_filter)
                   END IF
                   IF (present_vv) THEN
-                     CALL dbcsr_multiply("N", "N", -best_step_size, vv_step, pq, 1.0_dp, aux2, &
+                     CALL cp_dbcsr_multiply("N", "N", -best_step_size, vv_step, pq, 1.0_dp, aux2, &
                                          filter_eps=eps_filter)
                   ELSE
-                     CALL dbcsr_multiply("N", "N", -best_step_size, step, pq, 1.0_dp, aux2, &
+                     CALL cp_dbcsr_multiply("N", "N", -best_step_size, step, pq, 1.0_dp, aux2, &
                                          filter_eps=eps_filter)
                   END IF
                END IF
@@ -922,21 +923,21 @@ CONTAINS
             ! use m matrix as a temporary storage
             ! grad=t(vv).res.t(aux1)+t(aux2).res.t(oo)
             IF (present_vv) THEN
-               CALL dbcsr_multiply("N", "T", 1.0_dp, res, aux1, 0.0_dp, res_trial, &
+               CALL cp_dbcsr_multiply("N", "T", 1.0_dp, res, aux1, 0.0_dp, res_trial, &
                                    filter_eps=eps_filter)
-               CALL dbcsr_multiply("T", "N", 1.0_dp, vv, res_trial, 0.0_dp, m, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, vv, res_trial, 0.0_dp, m, &
                                    filter_eps=eps_filter)
             ELSE
-               CALL dbcsr_multiply("N", "T", 1.0_dp, res, aux1, 0.0_dp, m, &
+               CALL cp_dbcsr_multiply("N", "T", 1.0_dp, res, aux1, 0.0_dp, m, &
                                    filter_eps=eps_filter)
             END IF
             IF (present_oo) THEN
-               CALL dbcsr_multiply("T", "N", 1.0_dp, aux1, res, 0.0_dp, res_trial, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, aux1, res, 0.0_dp, res_trial, &
                                    filter_eps=eps_filter)
-               CALL dbcsr_multiply("N", "T", 1.0_dp, res_trial, oo, 1.0_dp, m, &
+               CALL cp_dbcsr_multiply("N", "T", 1.0_dp, res_trial, oo, 1.0_dp, m, &
                                    filter_eps=eps_filter)
             ELSE
-               CALL dbcsr_multiply("T", "N", 1.0_dp, aux2, res, 1.0_dp, m, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, aux2, res, 1.0_dp, m, &
                                    filter_eps=eps_filter)
             END IF
 
@@ -1028,9 +1029,9 @@ CONTAINS
 !CALL dbcsr_create(zero_pq,template=pq)
 !CALL dbcsr_init(zero_qp)
 !CALL dbcsr_create(zero_qp,template=qp)
-!CALL dbcsr_multiply("T","N",1.0_dp,aux2,aux2,0.0_dp,qqqq,&
+!CALL cp_dbcsr_multiply("T","N",1.0_dp,aux2,aux2,0.0_dp,qqqq,&
 !        filter_eps=eps_filter)
-!CALL dbcsr_multiply("N","T",-1.0_dp,aux1,aux1,0.0_dp,pppp,&
+!CALL cp_dbcsr_multiply("N","T",-1.0_dp,aux1,aux1,0.0_dp,pppp,&
 !        filter_eps=eps_filter)
 !CALL dbcsr_set(zero_qp,0.0_dp)
 !CALL dbcsr_set(zero_pq,0.0_dp)
@@ -1046,42 +1047,42 @@ CONTAINS
             ! calculate the optimal step size
             ! m=step.aux1+aux2.step
             IF (present_vv) THEN
-               CALL dbcsr_multiply("N", "N", 1.0_dp, vv, step, 0.0_dp, vv_step, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, vv, step, 0.0_dp, vv_step, &
                                    filter_eps=eps_filter)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, vv_step, aux1, 0.0_dp, m, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, vv_step, aux1, 0.0_dp, m, &
                                    filter_eps=eps_filter)
             ELSE
-               CALL dbcsr_multiply("N", "N", 1.0_dp, step, aux1, 0.0_dp, m, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, step, aux1, 0.0_dp, m, &
                                    filter_eps=eps_filter)
             END IF
             IF (present_oo) THEN
-               CALL dbcsr_multiply("N", "N", 1.0_dp, step, oo, 0.0_dp, step_oo, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, step, oo, 0.0_dp, step_oo, &
                                    filter_eps=eps_filter)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, aux2, step_oo, 1.0_dp, m, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, aux2, step_oo, 1.0_dp, m, &
                                    filter_eps=eps_filter)
             ELSE
-               CALL dbcsr_multiply("N", "N", 1.0_dp, aux2, step, 1.0_dp, m, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, aux2, step, 1.0_dp, m, &
                                    filter_eps=eps_filter)
             END IF
 
             IF (quadratic_term) THEN
                ! n=step.pq.step
                IF (present_oo) THEN
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, pq, step, 0.0_dp, oo1, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pq, step, 0.0_dp, oo1, &
                                       filter_eps=eps_filter)
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, oo1, oo, 0.0_dp, oo2, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, oo1, oo, 0.0_dp, oo2, &
                                       filter_eps=eps_filter)
                ELSE
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, pq, step, 0.0_dp, oo2, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pq, step, 0.0_dp, oo2, &
                                       filter_eps=eps_filter)
                END IF
                IF (present_vv) THEN
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, step, oo2, 0.0_dp, res_trial, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, step, oo2, 0.0_dp, res_trial, &
                                       filter_eps=eps_filter)
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, vv, res_trial, 0.0_dp, n, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, vv, res_trial, 0.0_dp, n, &
                                       filter_eps=eps_filter)
                ELSE
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, step, oo2, 0.0_dp, n, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, step, oo2, 0.0_dp, n, &
                                       filter_eps=eps_filter)
                END IF
 
@@ -1256,7 +1257,7 @@ CONTAINS
       ! RZK-warning is it possible to use dbcsr_scale_by_vector?
       ! or even insert elements directly in the prev cycles
       CALL dbcsr_create(t2, template=prec)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, tmp, pp_diag, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp, pp_diag, &
                           0.0_dp, t2, filter_eps=eps_filter)
 
       ! copy diagonal elements qq into rows of a matrix
@@ -1268,7 +1269,7 @@ CONTAINS
       CALL dbcsr_set_diag(qq_diag, q_diagonal)
       CALL dbcsr_set(tmp, 1.0_dp)
       CALL dbcsr_create(t1, template=prec)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, qq_diag, tmp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, qq_diag, tmp, &
                           0.0_dp, t1, filter_eps=eps_filter)
 
       CALL dbcsr_hadamard_product(t1, t2, prec)
@@ -1276,7 +1277,7 @@ CONTAINS
       CALL dbcsr_scale(prec, 2.0_dp)
 
       ! Get the diagonal of tr(qq).qq
-      CALL dbcsr_multiply("T", "N", 1.0_dp, qq, qq, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, qq, qq, &
                           0.0_dp, qq_diag, retain_sparsity=.TRUE., &
                           filter_eps=eps_filter)
       CALL dbcsr_get_diag(qq_diag, q_diagonal)
@@ -1285,13 +1286,13 @@ CONTAINS
       CALL dbcsr_set_diag(qq_diag, q_diagonal)
       DEALLOCATE (q_diagonal)
       CALL dbcsr_set(tmp, 1.0_dp)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, qq_diag, tmp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, qq_diag, tmp, &
                           0.0_dp, t2, filter_eps=eps_filter)
       CALL dbcsr_release(qq_diag)
       CALL dbcsr_add(prec, t2, 1.0_dp, 1.0_dp)
 
       ! Get the diagonal of pp.tr(pp)
-      CALL dbcsr_multiply("N", "T", 1.0_dp, pp, pp, &
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, pp, pp, &
                           0.0_dp, pp_diag, retain_sparsity=.TRUE., &
                           filter_eps=eps_filter)
       CALL dbcsr_get_diag(pp_diag, p_diagonal)
@@ -1300,7 +1301,7 @@ CONTAINS
       CALL dbcsr_set_diag(pp_diag, p_diagonal)
       DEALLOCATE (p_diagonal)
       CALL dbcsr_set(tmp, 1.0_dp)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, tmp, pp_diag, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp, pp_diag, &
                           0.0_dp, t2, filter_eps=eps_filter)
       CALL dbcsr_release(tmp)
       CALL dbcsr_release(pp_diag)
@@ -1602,9 +1603,9 @@ CONTAINS
 
       CALL dbcsr_create(tmp, template=matrix, &
                         matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix, u2, 0.0_dp, tmp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix, u2, 0.0_dp, tmp, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, u1, tmp, 0.0_dp, matrix, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, u1, tmp, 0.0_dp, matrix, &
                           filter_eps=eps_filter)
       CALL dbcsr_release(tmp)
 
@@ -1637,9 +1638,9 @@ CONTAINS
 
       CALL dbcsr_create(tmp, template=matrix, &
                         matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply("N", "T", 1.0_dp, matrix, u2, 0.0_dp, tmp, &
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix, u2, 0.0_dp, tmp, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, u1, tmp, 0.0_dp, matrix, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, u1, tmp, 0.0_dp, matrix, &
                           filter_eps=eps_filter)
       CALL dbcsr_release(tmp)
 
@@ -1681,9 +1682,9 @@ CONTAINS
 !    ! convert matrices to the new basis
 !    CALL dbcsr_init(tmp_pp)
 !    CALL dbcsr_create(tmp_pp,template=matrix_pp)
-!    CALL dbcsr_multiply("N","N",1.0_dp,matrix_pp,blk,0.0_dp,tmp_pp,&
+!    CALL cp_dbcsr_multiply("N","N",1.0_dp,matrix_pp,blk,0.0_dp,tmp_pp,&
 !               filter_eps=eps_filter)
-!    CALL dbcsr_multiply("T","N",1.0_dp,blk,tmp_pp,0.0_dp,matrix_pp,&
+!    CALL cp_dbcsr_multiply("T","N",1.0_dp,blk,tmp_pp,0.0_dp,matrix_pp,&
 !               filter_eps=eps_filter)
 !    CALL dbcsr_release(tmp_pp)
 !
@@ -1694,27 +1695,27 @@ CONTAINS
 !
 !    CALL dbcsr_init(tmp_qq)
 !    CALL dbcsr_create(tmp_qq,template=matrix_qq)
-!    CALL dbcsr_multiply("N","N",1.0_dp,matrix_qq,blk2,0.0_dp,tmp_qq,&
+!    CALL cp_dbcsr_multiply("N","N",1.0_dp,matrix_qq,blk2,0.0_dp,tmp_qq,&
 !               filter_eps=eps_filter)
-!    CALL dbcsr_multiply("T","N",1.0_dp,blk2,tmp_qq,0.0_dp,matrix_qq,&
+!    CALL cp_dbcsr_multiply("T","N",1.0_dp,blk2,tmp_qq,0.0_dp,matrix_qq,&
 !               filter_eps=eps_filter)
 !    CALL dbcsr_release(tmp_qq)
 !
 !    ! transform pq
 !    CALL dbcsr_init(tmp_pq)
 !    CALL dbcsr_create(tmp_pq,template=matrix_pq)
-!    CALL dbcsr_multiply("T","N",1.0_dp,blk,matrix_pq,0.0_dp,tmp_pq,&
+!    CALL cp_dbcsr_multiply("T","N",1.0_dp,blk,matrix_pq,0.0_dp,tmp_pq,&
 !               filter_eps=eps_filter)
-!    CALL dbcsr_multiply("N","N",1.0_dp,tmp_pq,blk2,0.0_dp,matrix_pq,&
+!    CALL cp_dbcsr_multiply("N","N",1.0_dp,tmp_pq,blk2,0.0_dp,matrix_pq,&
 !               filter_eps=eps_filter)
 !    CALL dbcsr_release(tmp_pq)
 !
 !    ! transform qp
 !    CALL dbcsr_init(tmp_qp)
 !    CALL dbcsr_create(tmp_qp,template=matrix_qp)
-!    CALL dbcsr_multiply("N","N",1.0_dp,matrix_qp,blk,0.0_dp,tmp_qp,&
+!    CALL cp_dbcsr_multiply("N","N",1.0_dp,matrix_qp,blk,0.0_dp,tmp_qp,&
 !               filter_eps=eps_filter)
-!    CALL dbcsr_multiply("T","N",1.0_dp,blk2,tmp_qp,0.0_dp,matrix_qp,&
+!    CALL cp_dbcsr_multiply("T","N",1.0_dp,blk2,tmp_qp,0.0_dp,matrix_qp,&
 !               filter_eps=eps_filter)
 !    CALL dbcsr_release(tmp_qp)
 !

@@ -13,6 +13,7 @@
 !> \author Fabian Belleflamme
 ! **************************************************************************************************
 MODULE ec_orth_solver
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_types,                      ONLY: admm_type,&
                                               get_admm_env
    USE cp_control_types,                ONLY: dft_control_type
@@ -901,11 +902,11 @@ CONTAINS
       DO ispin = 1, nspins
 
          ! tmp = FP
-         CALL dbcsr_multiply("N", "N", scaling, matrix_ks(ispin)%matrix, matrix_p(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", scaling, matrix_ks(ispin)%matrix, matrix_p(ispin)%matrix, &
                              0.0_dp, matrix_tmp, filter_eps=eps_filter, retain_sparsity=.FALSE.)
 
          ! tmp2 = ZFP
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_z(ispin)%matrix, matrix_tmp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_z(ispin)%matrix, matrix_tmp, &
                              0.0_dp, matrix_tmp2, filter_eps=eps_filter, retain_sparsity=.FALSE.)
 
          ! tmp = (ZFP)^T
@@ -1379,7 +1380,7 @@ CONTAINS
 
       DO ispin = 1, SIZE(a)
 
-         CALL dbcsr_multiply("N", "N", myalpha, a(ispin)%matrix, b(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", myalpha, a(ispin)%matrix, b(ispin)%matrix, &
                              0.0_dp, work, filter_eps=eps_filter)
          CALL dbcsr_transposed(work2, work)
 
@@ -1451,10 +1452,10 @@ CONTAINS
       DO ispin = 1, nspins
 
          ! tmp1 = P*M
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p(ispin)%matrix, matrix_io(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p(ispin)%matrix, matrix_io(ispin)%matrix, &
                              0.0_dp, matrix_tmp, filter_eps=eps_filter)
          ! m_io = P*M*Q
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, matrix_q, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, matrix_q, &
                              0.0_dp, matrix_io(ispin)%matrix, filter_eps=eps_filter)
 
          ! tmp = (P^T*M^T*Q^T)^T = -(P*M*Q)^T
@@ -1496,9 +1497,9 @@ CONTAINS
       CALL dbcsr_create(matrix_work, template=matrix, matrix_type=dbcsr_type_no_symmetry)
       CALL dbcsr_create(matrix_tmp, template=matrix, matrix_type=dbcsr_type_no_symmetry)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_trafo, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_trafo, &
                           0.0_dp, matrix_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_trafo, matrix_work, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_trafo, matrix_work, &
                           0.0_dp, matrix_tmp, filter_eps=eps_filter)
       ! symmetrize results (this is again needed to make sure everything is stable)
       CALL dbcsr_transposed(matrix_work, matrix_tmp)

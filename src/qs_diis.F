@@ -19,6 +19,7 @@
 !> \author Matthias Krack (28.06.2000)
 ! **************************************************************************************************
 MODULE qs_diis
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_cfm_basic_linalg,             ONLY: cp_cfm_trace
    USE cp_cfm_types,                    ONLY: cp_cfm_create,&
                                               cp_cfm_get_info,&
@@ -615,13 +616,13 @@ CONTAINS
          IF (PRESENT(s_matrix)) THEN ! if-s_matrix ---------- START
 ! Calculate Kohn-Sham error (non-orthogonal)= K*P*S-(K*P*S)^T
 ! matrix_tmp = P*S
-            CALL dbcsr_multiply("N", "N", &
+            CALL cp_dbcsr_multiply("N", "N", &
                                 1.0_dp, ls_scf_env%matrix_p(ispin), &
                                 s_matrix, &
                                 0.0_dp, matrix_tmp, &
                                 filter_eps=threshold)
 ! new_errors= K*P*S
-            CALL dbcsr_multiply("N", "N", &
+            CALL cp_dbcsr_multiply("N", "N", &
                                 1.0_dp, matrix_ks(ispin)%matrix, &
                                 matrix_tmp, &
                                 0.0_dp, new_errors, &
@@ -636,7 +637,7 @@ CONTAINS
          ELSE ! if-s_matrix ---------- MID
 ! Calculate Kohn-Sham error (orthogonal)= K*P - P*K
 ! new_errors=K*P
-            CALL dbcsr_multiply("N", "N", &
+            CALL cp_dbcsr_multiply("N", "N", &
                                 1.0_dp, matrix_ks(ispin)%matrix, &
                                 ls_scf_env%matrix_p(ispin), &
                                 0.0_dp, new_errors, &

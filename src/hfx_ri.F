@@ -10,6 +10,7 @@
 ! **************************************************************************************************
 
 MODULE hfx_ri
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
 
    USE OMP_LIB,                         ONLY: omp_get_num_threads,&
                                               omp_get_thread_num
@@ -279,7 +280,7 @@ CONTAINS
             CALL check_sqrt(t_2c_op_pot(1), matrix_sqrt=t_2c_op_pot_sqrt(1), unit_nr=unit_nr)
          END IF
          CALL dbcsr_create(t_2c_int_mat(1), template=t_2c_op_pot(1), matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, t_2c_op_RI_inv(1), t_2c_op_pot_sqrt(1), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, t_2c_op_RI_inv(1), t_2c_op_pot_sqrt(1), &
                              0.0_dp, t_2c_int_mat(1), filter_eps=ri_data%filter_eps)
          CALL dbcsr_release(t_2c_op_RI_inv(1))
          CALL dbcsr_release(t_2c_op_pot_sqrt(1))
@@ -304,7 +305,7 @@ CONTAINS
          !We need (P|Q)^-1 for the forces
          CALL dbcsr_copy(dbcsr_work_1(1), t_2c_int_mat(1))
          CALL dbcsr_create(dbcsr_work_2(1), template=t_2c_int_mat(1))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, dbcsr_work_1(1), t_2c_int_mat(1), 0.0_dp, dbcsr_work_2(1))
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, dbcsr_work_1(1), t_2c_int_mat(1), 0.0_dp, dbcsr_work_2(1))
          CALL dbcsr_release(dbcsr_work_1(1))
          CALL dbt_create(dbcsr_work_2(1), t_2c_work(1))
          CALL dbt_copy_matrix_to_tensor(dbcsr_work_2(1), t_2c_work(1))
@@ -359,7 +360,7 @@ CONTAINS
       END IF
 
       CALL dbcsr_create(matrix_tmp, template=matrix_1)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_1, matrix_2, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_1, matrix_2, &
                           0.0_dp, matrix_tmp)
       frob_matrix_base = dbcsr_frobenius_norm(matrix_tmp)
       CALL dbcsr_add_on_diag(matrix_tmp, -1.0_dp)
@@ -399,7 +400,7 @@ CONTAINS
       IF (PRESENT(matrix_sqrt)) THEN
          CALL dbcsr_create(matrix_tmp, template=matrix)
          CALL dbcsr_copy(matrix_copy, matrix_sqrt)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt, matrix_copy, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt, matrix_copy, &
                              0.0_dp, matrix_tmp)
          CALL dbcsr_add(matrix_tmp, matrix, 1.0_dp, -1.0_dp)
          frob_matrix = dbcsr_frobenius_norm(matrix_tmp)
@@ -414,7 +415,7 @@ CONTAINS
       IF (PRESENT(matrix_sqrt_inv)) THEN
          CALL dbcsr_create(matrix_tmp, template=matrix)
          CALL dbcsr_copy(matrix_copy, matrix_sqrt_inv)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrix_copy, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrix_copy, &
                              0.0_dp, matrix_tmp)
          CALL check_inverse(matrix_tmp, matrix, name="SQRT("//TRIM(name_prv)//")", unit_nr=unit_nr)
          CALL dbcsr_release(matrix_tmp)
@@ -850,11 +851,11 @@ CONTAINS
          CALL dbcsr_create(t_2c_tmp(1), template=t_2c_op_RI(1), matrix_type=dbcsr_type_no_symmetry)
          CALL dbcsr_create(t_2c_tmp_2(1), template=t_2c_op_RI(1), matrix_type=dbcsr_type_no_symmetry)
          CALL dbcsr_release(t_2c_op_RI(1))
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, t_2c_int_mat(1), t_2c_op_pot(1), 0.0_dp, t_2c_tmp(1), &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, t_2c_int_mat(1), t_2c_op_pot(1), 0.0_dp, t_2c_tmp(1), &
                              filter_eps=ri_data%filter_eps)
 
          CALL dbcsr_release(t_2c_op_pot(1))
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, t_2c_tmp(1), t_2c_int_mat(1), 0.0_dp, t_2c_tmp_2(1), &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, t_2c_tmp(1), t_2c_int_mat(1), 0.0_dp, t_2c_tmp_2(1), &
                              filter_eps=ri_data%filter_eps)
          CALL dbcsr_release(t_2c_tmp(1))
          CALL dbcsr_release(t_2c_int_mat(1))

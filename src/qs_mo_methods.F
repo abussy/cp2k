@@ -12,6 +12,7 @@
 !> \author Joost VandeVondele (2003-08)
 ! **************************************************************************************************
 MODULE qs_mo_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_types,                      ONLY: admm_type
    USE admm_utils,                      ONLY: admm_correct_for_eigenvalues,&
                                               admm_uncorrect_for_eigenvalues
@@ -601,11 +602,11 @@ CONTAINS
          END IF
 
          ! h subblock and diag
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, ks_matrix, orbitals, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, ks_matrix, orbitals, &
                              0.0_dp, weighted_vectors)
          !CALL cp_dbcsr_sm_fm_multiply(ks_matrix,orbitals,weighted_vectors, ncol_global)
 
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, orbitals, weighted_vectors, 0.0_dp, h_block)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, orbitals, weighted_vectors, 0.0_dp, h_block)
          !CALL parallel_gemm('T','N',ncol_global,ncol_global,nrow_global,1.0_dp, &
          !                orbitals,weighted_vectors,0.0_dp,h_block)
 
@@ -618,14 +619,14 @@ CONTAINS
 
          ! rotate the orbitals
          IF (do_rotation_local) THEN
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, orbitals, e_vectors, 0.0_dp, weighted_vectors)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orbitals, e_vectors, 0.0_dp, weighted_vectors)
             !CALL parallel_gemm('N','N',nrow_global,ncol_global,ncol_global,1.0_dp, &
             !             orbitals,e_vectors,0.0_dp,weighted_vectors)
             CALL dbcsr_copy(orbitals, weighted_vectors)
             !CALL cp_fm_to_fm(weighted_vectors,orbitals)
             IF (PRESENT(co_rotate)) THEN
                IF (ASSOCIATED(co_rotate)) THEN
-                  CALL dbcsr_multiply('N', 'N', 1.0_dp, co_rotate, e_vectors, 0.0_dp, weighted_vectors)
+                  CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, co_rotate, e_vectors, 0.0_dp, weighted_vectors)
                   !CALL parallel_gemm('N','N',nrow_global,ncol_global,ncol_global,1.0_dp, &
                   !     co_rotate,e_vectors,0.0_dp,weighted_vectors)
                   CALL dbcsr_copy(co_rotate, weighted_vectors)

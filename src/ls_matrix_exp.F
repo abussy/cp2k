@@ -12,6 +12,7 @@
 ! **************************************************************************************************
 
 MODULE ls_matrix_exp
+   USE cp_dbcsr_multiplication,         ONLY: cp_dbcsr_multiply
 
    USE cp_log_handling,                 ONLY: cp_logger_get_default_io_unit
    USE dbcsr_api,                       ONLY: &
@@ -116,8 +117,8 @@ CONTAINS
       CALL dbcsr_create(c_plus_d, template=A_re, matrix_type="N")
 
       !Do the neccesarry multiplications
-      CALL dbcsr_multiply(transa2, transb2, alpha, A_re, B_re, zero, ac, filter_eps=filter_eps)
-      CALL dbcsr_multiply(transa2, transb2, alpha2, A_im, B_im, zero, bd, filter_eps=filter_eps)
+      CALL cp_dbcsr_multiply(transa2, transb2, alpha, A_re, B_re, zero, ac, filter_eps=filter_eps)
+      CALL cp_dbcsr_multiply(transa2, transb2, alpha2, A_im, B_im, zero, bd, filter_eps=filter_eps)
 
       CALL dbcsr_add(a_plus_b, A_re, zero, alpha)
       CALL dbcsr_add(a_plus_b, A_im, one, alpha3)
@@ -126,7 +127,7 @@ CONTAINS
 
       !this can already be written into C_im
       !now both matrixes have been scaled which means we currently multiplied by alpha squared
-      CALL dbcsr_multiply(transa2, transb2, one/alpha, a_plus_b, c_plus_d, beta, C_im, filter_eps=filter_eps)
+      CALL cp_dbcsr_multiply(transa2, transb2, one/alpha, a_plus_b, c_plus_d, beta, C_im, filter_eps=filter_eps)
 
       !now add up all the terms into the result
       CALL dbcsr_add(C_re, ac, beta, one)
@@ -205,14 +206,14 @@ CONTAINS
       DO i = 1, nloop
          CALL dbcsr_scale(T1, 1.0_dp/(REAL(i, dp)*2.0_dp - 1.0_dp))
          CALL dbcsr_filter(T1, filter_eps)
-         CALL dbcsr_multiply("N", "N", square_fac, im_matrix, T1, zero, &
+         CALL cp_dbcsr_multiply("N", "N", square_fac, im_matrix, T1, zero, &
                              T2, filter_eps=filter_eps)
          Tfac = one
          IF (MOD(i, 2) == 0) Tfac = -Tfac
          CALL dbcsr_add(Tres_im, T2, one, Tfac)
          CALL dbcsr_scale(T2, 1.0_dp/(REAL(i, dp)*2.0_dp))
          CALL dbcsr_filter(T2, filter_eps)
-         CALL dbcsr_multiply("N", "N", square_fac, im_matrix, T2, zero, &
+         CALL cp_dbcsr_multiply("N", "N", square_fac, im_matrix, T2, zero, &
                              T1, filter_eps=filter_eps)
          Tfac = one
          IF (MOD(i, 2) == 1) Tfac = -Tfac
@@ -380,9 +381,9 @@ CONTAINS
       convergence = .FALSE.
       DO i = 1, 20
          prefac = one/i
-         CALL dbcsr_multiply("N", "N", -prefac, propagator, tmp2, zero, comm, &
+         CALL cp_dbcsr_multiply("N", "N", -prefac, propagator, tmp2, zero, comm, &
                              filter_eps=filter_eps_small)
-         CALL dbcsr_multiply("N", "N", prefac, propagator, tmp, zero, comm2, &
+         CALL cp_dbcsr_multiply("N", "N", prefac, propagator, tmp, zero, comm2, &
                              filter_eps=filter_eps_small)
          CALL dbcsr_transposed(tmp, comm)
          CALL dbcsr_transposed(tmp2, comm2)

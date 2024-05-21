@@ -11,6 +11,7 @@
 ! **************************************************************************************************
 
 MODULE xas_tdp_kernel
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE basis_set_types,                 ONLY: gto_basis_set_p_type
    USE cp_dbcsr_operations,             ONLY: cp_dbcsr_dist2d_to_dist,&
                                               dbcsr_deallocate_matrix_set
@@ -1379,7 +1380,7 @@ CONTAINS
             END IF
 
             ! Take the product lhs*rhs^T
-            CALL dbcsr_multiply('N', 'T', 1.0_dp, lhs_int(i)%matrix, rhs_int(j)%matrix, &
+            CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, lhs_int(i)%matrix, rhs_int(j)%matrix, &
                                 0.0_dp, prod, filter_eps=eps_filter)
 
             ! Loop over blocks of prod and fill kernel matrix => ok cuz same (but replicated) dist

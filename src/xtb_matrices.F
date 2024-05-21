@@ -13,6 +13,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE xtb_matrices
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE ai_contraction,                  ONLY: block_add,&
                                               contraction
    USE ai_overlap,                      ONLY: overlap_ab
@@ -1746,7 +1747,7 @@ CONTAINS
                IF (.NOT. mo_array(ispin)%use_mo_coeff_b) THEN
                   CPABORT("")
                END IF
-               CALL dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin, 1)%matrix, mo_coeff, &
+               CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin, 1)%matrix, mo_coeff, &
                                    0.0_dp, mo_derivs(ispin)%matrix)
             END DO
          END BLOCK

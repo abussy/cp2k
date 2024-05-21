@@ -13,6 +13,7 @@
 ! **************************************************************************************************
 
 MODULE dm_ls_scf_curvy
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE bibliography,                    ONLY: Shao2003,&
                                               cite_reference
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
@@ -366,7 +367,7 @@ CONTAINS
          CALL dbcsr_copy(matrix_dp_old, matrix_dp(ispin))
 
 ! Precompute some matrices to save work during iterations
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p(ispin), matrix_ks(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p(ispin), matrix_ks(ispin), &
                              0.0_dp, matrix_PKs, filter_eps=eps_filter)
          CALL dbcsr_transposed(matrix_b, matrix_PKs)
          CALL dbcsr_copy(matrix_cg, matrix_b)
@@ -400,7 +401,7 @@ CONTAINS
             CALL commutator_symm(matrix_b, matrix_cg, matrix_Ax, eps_filter, 1.0_dp)
 
 ! Compute the missing bits 2*(FDP+PDF) (again use symmetry to compute as a commutator)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_cg, matrix_p(ispin), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_cg, matrix_p(ispin), &
                                 0.0_dp, matrix_tmp, filter_eps=eps_filter)
             CALL commutator_symm(matrix_ks(ispin), matrix_tmp, matrix_tmp1, eps_filter, 2.0_dp)
             CALL dbcsr_add(matrix_Ax, matrix_tmp1, 1.0_dp, 1.0_dp)
@@ -590,7 +591,7 @@ CONTAINS
 
       CALL dbcsr_create(work, template=a, matrix_type=dbcsr_type_no_symmetry)
 
-      CALL dbcsr_multiply("N", "N", prefac, a, b, 0.0_dp, res, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply("N", "N", prefac, a, b, 0.0_dp, res, filter_eps=eps_filter)
       CALL dbcsr_transposed(work, res)
       CALL dbcsr_add(res, work, 1.0_dp, -1.0_dp)
 
@@ -670,7 +671,7 @@ CONTAINS
             step_fac = step_fac*step_size(ispin)
             !allow for a bit of matrix magic here by exploiting matrix and matrix_tmp
             !matrix_tmp is alway the previous order of the BCH series
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, matrix_dp(ispin), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, matrix_dp(ispin), &
                                 0.0_dp, matrix, filter_eps=threshold)
 
             !(anti)symmetry allows to sum the transposed instead of the full commutator, matrix becomes the latest result
@@ -735,9 +736,9 @@ CONTAINS
       CALL dbcsr_create(matrix_tmp, template=matrix(1), matrix_type=dbcsr_type_no_symmetry)
 
       DO ispin = 1, SIZE(matrix)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix(ispin), matrix_trafo, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix(ispin), matrix_trafo, &
                              0.0_dp, matrix_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_trafo, matrix_work, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_trafo, matrix_work, &
                              0.0_dp, matrix_tmp, filter_eps=eps_filter)
          ! symmetrize results (this is again needed to make sure everything is stable)
          CALL dbcsr_transposed(matrix_work, matrix_tmp)

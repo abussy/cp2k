@@ -11,6 +11,7 @@
 !> \author Joost VandeVondele (25.08.2002)
 ! **************************************************************************************************
 MODULE qs_ot_eigensolver
+   USE cp_dbcsr_multiplication,         ONLY: cp_dbcsr_multiply
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
@@ -173,9 +174,9 @@ CONTAINS
             CALL cp_dbcsr_m_by_n_from_template(matrix_buf2_ortho, template=matrix_h, m=ortho_space_k, n=k, &
                                                sym=dbcsr_type_no_symmetry)
 
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, matrix_orthogonal_space, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, matrix_orthogonal_space, &
                                 0.0_dp, matrix_s_ortho)
-            CALL dbcsr_multiply('T', 'N', rone, matrix_s_ortho, matrix_s_ortho, &
+            CALL cp_dbcsr_multiply('T', 'N', rone, matrix_s_ortho, matrix_s_ortho, &
                                 rzero, matrix_os_ortho)
 
             CALL cp_dbcsr_cholesky_decompose(matrix_os_ortho, &
@@ -184,16 +185,16 @@ CONTAINS
                                           para_env=qs_ot_env(1)%para_env, blacs_env=qs_ot_env(1)%blacs_env, &
                                           upper_to_full=.TRUE.)
 
-            CALL dbcsr_multiply('T', 'N', rone, matrix_s_ortho, matrix_c, &
+            CALL cp_dbcsr_multiply('T', 'N', rone, matrix_s_ortho, matrix_c, &
                                 rzero, matrix_buf1_ortho)
-            CALL dbcsr_multiply('N', 'N', rone, matrix_os_ortho, matrix_buf1_ortho, &
+            CALL cp_dbcsr_multiply('N', 'N', rone, matrix_os_ortho, matrix_buf1_ortho, &
                                 rzero, matrix_buf2_ortho)
-            CALL dbcsr_multiply('N', 'N', -rone, matrix_s_ortho, matrix_buf2_ortho, &
+            CALL cp_dbcsr_multiply('N', 'N', -rone, matrix_s_ortho, matrix_buf2_ortho, &
                                 rone, matrix_c)
 
             ! make matrix_c0 an orthogonal basis, matrix_c contains sc0
             CALL dbcsr_copy(qs_ot_env(1)%matrix_c0, matrix_c)
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_c0, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_c0, &
                                 0.0_dp, matrix_c)
 
             CALL make_basis_sv(qs_ot_env(1)%matrix_c0, k, matrix_c, &
@@ -216,7 +217,7 @@ CONTAINS
 
             ! set c0,sc0
             CALL dbcsr_copy(qs_ot_env(1)%matrix_c0, matrix_c)
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_c0, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_c0, &
                                 0.0_dp, qs_ot_env(1)%matrix_sc0)
 
             CALL make_basis_sv(qs_ot_env(1)%matrix_c0, k, qs_ot_env(1)%matrix_sc0, &
@@ -255,7 +256,7 @@ CONTAINS
             iter_total = iter_total + 1
 
             ! the energy is cHc, the gradient is 2*H*c
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_h, matrix_c, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_h, matrix_c, &
                                 0.0_dp, matrix_hc(1)%matrix)
             CALL dbcsr_dot(matrix_c, matrix_hc(1)%matrix, energy)
             IF (.NOT. energy_only) THEN
@@ -267,7 +268,7 @@ CONTAINS
             delta = qs_ot_env(1)%delta
             energy_only = qs_ot_env(1)%energy_only
 
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_x, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s, qs_ot_env(1)%matrix_x, &
                                 0.0_dp, qs_ot_env(1)%matrix_sx)
 
             CALL qs_ot_get_p(qs_ot_env(1)%matrix_x, qs_ot_env(1)%matrix_sx, qs_ot_env(1))

@@ -10,6 +10,7 @@
 !> \author Ole Schuett
 ! **************************************************************************************************
 MODULE pao_param_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_log_handling,                 ONLY: cp_to_string
    USE dbcsr_api,                       ONLY: &
@@ -74,13 +75,13 @@ CONTAINS
 
       CALL dbcsr_create(matrix_NM, template=ls_mstruct%matrix_A, matrix_type="N")
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_N_inv, matrix_Ma, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_N_inv, matrix_Ma, &
                           1.0_dp, matrix_NM, filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_N, matrix_Mb, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_N, matrix_Mb, &
                           1.0_dp, matrix_NM, filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_NM, pao%matrix_Y, &
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_NM, pao%matrix_Y, &
                           1.0_dp, matrix_M, filter_eps=filter_eps)
 
       !---------------------------------------------------------------------------
@@ -290,44 +291,44 @@ CONTAINS
       !---------------------------------------------------------------------------
       ! calculate need products in pao basis
       CALL dbcsr_create(matrix_PH, template=ls_scf_env%matrix_s, matrix_type="N")
-      CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_p(1), ls_scf_env%matrix_ks(1), &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_p(1), ls_scf_env%matrix_ks(1), &
                           0.0_dp, matrix_PH, filter_eps=filter_eps)
 
       CALL dbcsr_create(matrix_PHP, template=ls_scf_env%matrix_s, matrix_type="N")
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_PH, ls_scf_env%matrix_p(1), &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_PH, ls_scf_env%matrix_p(1), &
                           0.0_dp, matrix_PHP, filter_eps=filter_eps)
 
       CALL dbcsr_create(matrix_SP, template=ls_scf_env%matrix_s, matrix_type="N")
-      CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s, ls_scf_env%matrix_p(1), &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s, ls_scf_env%matrix_p(1), &
                           0.0_dp, matrix_SP, filter_eps=filter_eps)
 
       IF (nspin == 1) CALL dbcsr_scale(matrix_SP, 0.5_dp)
 
       CALL dbcsr_create(matrix_HPS, template=ls_scf_env%matrix_s, matrix_type="N")
-      CALL dbcsr_multiply("N", "T", 1.0_dp, ls_scf_env%matrix_ks(1), matrix_SP, &
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, ls_scf_env%matrix_ks(1), matrix_SP, &
                           0.0_dp, matrix_HPS, filter_eps=filter_eps)
 
       CALL dbcsr_create(matrix_PSP, template=ls_scf_env%matrix_s, matrix_type="N")
-      CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_p(1), matrix_SP, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_p(1), matrix_SP, &
                           0.0_dp, matrix_PSP, filter_eps=filter_eps)
 
       !---------------------------------------------------------------------------
       ! M1 = dE_lnv / dP_pao
       CALL dbcsr_create(matrix_M1, template=ls_scf_env%matrix_s, matrix_type="N")
 
-      CALL dbcsr_multiply("N", "T", 3.0_dp, ls_scf_env%matrix_ks(1), matrix_SP, &
+      CALL cp_dbcsr_multiply("N", "T", 3.0_dp, ls_scf_env%matrix_ks(1), matrix_SP, &
                           1.0_dp, matrix_M1, filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "N", 3.0_dp, matrix_SP, ls_scf_env%matrix_ks(1), &
+      CALL cp_dbcsr_multiply("N", "N", 3.0_dp, matrix_SP, ls_scf_env%matrix_ks(1), &
                           1.0_dp, matrix_M1, filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "T", -2.0_dp, matrix_HPS, matrix_SP, &
+      CALL cp_dbcsr_multiply("N", "T", -2.0_dp, matrix_HPS, matrix_SP, &
                           1.0_dp, matrix_M1, filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_SP, matrix_HPS, &
+      CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_SP, matrix_HPS, &
                           1.0_dp, matrix_M1, filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "T", -2.0_dp, matrix_SP, matrix_HPS, &
+      CALL cp_dbcsr_multiply("N", "T", -2.0_dp, matrix_SP, matrix_HPS, &
                           1.0_dp, matrix_M1, filter_eps=filter_eps)
 
       ! reverse possible molecular clustering
@@ -343,7 +344,7 @@ CONTAINS
 
       CALL dbcsr_add(matrix_M2, matrix_PSP, 1.0_dp, 3.0_dp)
 
-      CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_PSP, matrix_SP, &
+      CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_PSP, matrix_SP, &
                           1.0_dp, matrix_M2, filter_eps=filter_eps)
 
       ! reverse possible molecular clustering
@@ -359,10 +360,10 @@ CONTAINS
 
       CALL dbcsr_add(matrix_M3, matrix_PHP, 1.0_dp, 3.0_dp)
 
-      CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_PHP, matrix_SP, &
+      CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_PHP, matrix_SP, &
                           1.0_dp, matrix_M3, filter_eps=filter_eps)
 
-      CALL dbcsr_multiply("N", "T", -2.0_dp, matrix_PSP, matrix_PH, &
+      CALL cp_dbcsr_multiply("N", "T", -2.0_dp, matrix_PSP, matrix_PH, &
                           1.0_dp, matrix_M3, filter_eps=filter_eps)
 
       ! reverse possible molecular clustering
@@ -384,33 +385,33 @@ CONTAINS
       !---------------------------------------------------------------------------
       ! combine M1 with matrices from primary basis
       CALL dbcsr_create(matrix_PA, template=ls_mstruct%matrix_A, matrix_type="N")
-      CALL dbcsr_multiply("N", "N", 1.0_dp, rho_ao(1)%matrix, ls_mstruct%matrix_A, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, rho_ao(1)%matrix, ls_mstruct%matrix_A, &
                           0.0_dp, matrix_PA, filter_eps=filter_eps)
 
       ! matrix_Ma = P * A * M1
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_PA, matrix_M1_dc, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_PA, matrix_M1_dc, &
                           0.0_dp, matrix_Ma, filter_eps=filter_eps)
 
       !---------------------------------------------------------------------------
       ! combine M2 with matrices from primary basis
       CALL dbcsr_create(matrix_HB, template=ls_mstruct%matrix_B, matrix_type="N")
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_ks(1)%matrix, ls_mstruct%matrix_B, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_ks(1)%matrix, ls_mstruct%matrix_B, &
                           0.0_dp, matrix_HB, filter_eps=filter_eps)
 
       ! matrix_Mb = H * B * M2
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_HB, matrix_M2_dc, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_HB, matrix_M2_dc, &
                           0.0_dp, matrix_Mb, filter_eps=filter_eps)
 
       !---------------------------------------------------------------------------
       ! combine M3 with matrices from primary basis
       CALL dbcsr_create(matrix_SB, template=ls_mstruct%matrix_B, matrix_type="N")
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s(1)%matrix, ls_mstruct%matrix_B, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s(1)%matrix, ls_mstruct%matrix_B, &
                           0.0_dp, matrix_SB, filter_eps=filter_eps)
 
       IF (nspin == 1) CALL dbcsr_scale(matrix_SB, 0.5_dp)
 
       ! matrix_Mb += S * B * M3
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_SB, matrix_M3_dc, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_SB, matrix_M3_dc, &
                           1.0_dp, matrix_Mb, filter_eps=filter_eps)
 
       IF (nspin == 1) CALL dbcsr_scale(matrix_Ma, 2.0_dp)

@@ -13,6 +13,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE mao_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_kind_types,               ONLY: get_atomic_kind
    USE basis_set_container_types,       ONLY: add_basis_set_to_container
    USE basis_set_types,                 ONLY: create_primitive_basis_set,&
@@ -242,14 +243,14 @@ CONTAINS
       CALL dbcsr_create(bmat, template=binv)
       CALL dbcsr_create(tmat, template=qmat)
       ! calculate B=C(T)*S*C matrix, S=(MAO,MAO) overlap
-      CALL dbcsr_multiply("N", "N", 1.0_dp, smat, mao_coef, 0.0_dp, scmat)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, mao_coef, scmat, 0.0_dp, bmat)
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, smat, mao_coef, 0.0_dp, scmat)
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mao_coef, scmat, 0.0_dp, bmat)
       ! calculate inverse of B
       CALL invert_Hotelling(binv, bmat, threshold, use_inv_as_guess=reuse, &
                             norm_convergence=convergence, silent=.TRUE.)
       ! calculate Binv*C and T=C(T)*Binv*C
-      CALL dbcsr_multiply("N", "N", 1.0_dp, mao_coef, binv, 0.0_dp, scmat)
-      CALL dbcsr_multiply("N", "T", 1.0_dp, scmat, mao_coef, 0.0_dp, tmat)
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mao_coef, binv, 0.0_dp, scmat)
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, scmat, mao_coef, 0.0_dp, tmat)
       ! function = Tr(Q*T)
       CALL dbcsr_dot(qmat, tmat, fval)
       ! free temp matrices
@@ -286,23 +287,23 @@ CONTAINS
       CALL dbcsr_create(tmat, template=qmat)
       CALL dbcsr_create(t2mat, template=scmat)
       ! calculate B=C(T)*S*C matrix, S=(MAO,MAO) overlap
-      CALL dbcsr_multiply("N", "N", 1.0_dp, smat, mao_coef, 0.0_dp, scmat)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, mao_coef, scmat, 0.0_dp, bmat)
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, smat, mao_coef, 0.0_dp, scmat)
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mao_coef, scmat, 0.0_dp, bmat)
       ! calculate inverse of B
       CALL invert_Hotelling(binv, bmat, threshold, use_inv_as_guess=reuse, &
                             norm_convergence=convergence, silent=.TRUE.)
       ! calculate R=C*Binv and T=C*Binv*C(T)=R*C(T)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, mao_coef, binv, 0.0_dp, scmat)
-      CALL dbcsr_multiply("N", "T", 1.0_dp, scmat, mao_coef, 0.0_dp, tmat)
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mao_coef, binv, 0.0_dp, scmat)
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, scmat, mao_coef, 0.0_dp, tmat)
       ! function = Tr(Q*T)
       CALL dbcsr_dot(qmat, tmat, fval)
       ! Gradient part 1: g = 2*Q*C*Binv = 2*Q*R
-      CALL dbcsr_multiply("N", "N", 2.0_dp, qmat, scmat, 0.0_dp, mao_grad, &
+      CALL cp_dbcsr_multiply("N", "N", 2.0_dp, qmat, scmat, 0.0_dp, mao_grad, &
                           retain_sparsity=.TRUE.)
       ! Gradient part 2: g = -2*S*T*X; X = Q*R
-      CALL dbcsr_multiply("N", "N", 1.0_dp, qmat, scmat, 0.0_dp, t2mat)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, tmat, t2mat, 0.0_dp, scmat)
-      CALL dbcsr_multiply("N", "N", -2.0_dp, smat, scmat, 1.0_dp, mao_grad, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, qmat, scmat, 0.0_dp, t2mat)
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmat, t2mat, 0.0_dp, scmat)
+      CALL cp_dbcsr_multiply("N", "N", -2.0_dp, smat, scmat, 1.0_dp, mao_grad, &
                           retain_sparsity=.TRUE.)
       ! free temp matrices
       CALL dbcsr_release(scmat)
@@ -765,9 +766,9 @@ CONTAINS
       ! Q=APA(T)
       DO ispin = 1, nspin
          IF (nim == 1) THEN
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_smo(1)%matrix, matrix_p(ispin, 1)%matrix, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_smo(1)%matrix, matrix_p(ispin, 1)%matrix, &
                                 0.0_dp, tmat, filter_eps=eps_filter)
-            CALL dbcsr_multiply("N", "T", 1.0_dp, tmat, matrix_smo(1)%matrix, &
+            CALL cp_dbcsr_multiply("N", "T", 1.0_dp, tmat, matrix_smo(1)%matrix, &
                                 0.0_dp, matrix_q(ispin)%matrix, filter_eps=eps_filter)
          ELSE
             ! k-points
@@ -791,9 +792,9 @@ CONTAINS
             norb = NINT(electra(ispin))
             nocc = MOD(2, nspin) + 1
             CALL calculate_p_gamma(pmat, ksmat, smat, kpoints, norb, REAL(nocc, KIND=dp))
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_smo(1)%matrix, pmat, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_smo(1)%matrix, pmat, &
                                 0.0_dp, tmat, filter_eps=eps_filter)
-            CALL dbcsr_multiply("N", "T", 1.0_dp, tmat, matrix_smo(1)%matrix, &
+            CALL cp_dbcsr_multiply("N", "T", 1.0_dp, tmat, matrix_smo(1)%matrix, &
                                 0.0_dp, matrix_q(ispin)%matrix, filter_eps=eps_filter)
             CALL dbcsr_release(pmat)
             CALL dbcsr_release(smat)

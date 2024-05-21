@@ -20,6 +20,7 @@
 ! **************************************************************************************************
 
 MODULE qs_ks_utils
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_types,                      ONLY: admm_type,&
                                               get_admm_env
    USE atomic_kind_types,               ONLY: atomic_kind_type
@@ -338,7 +339,7 @@ CONTAINS
             scaling(k_alpha - Nelectron + 1:k_alpha) = occupations(ispin, :, iterm)
             CALL dbcsr_copy(fm_scaled, mo_coeff)
             CALL dbcsr_scale_by_vector(fm_scaled, scaling, side='right')
-            CALL dbcsr_multiply('n', 't', 1.0_dp, mo_coeff, fm_scaled, &
+            CALL cp_dbcsr_multiply('n', 't', 1.0_dp, mo_coeff, fm_scaled, &
                                 0.0_dp, matrix_p(ispin)%matrix, retain_sparsity=.TRUE.)
             ! compute the densities on the grid
             CALL calculate_rho_elec(matrix_p=matrix_p(ispin)%matrix, &
@@ -411,7 +412,7 @@ CONTAINS
 
             ! add this to the mo_derivs, again based on the alpha mo_coeff
             DO ispin = 1, Nspin
-               CALL dbcsr_multiply('n', 'n', 1.0_dp, matrix_h(ispin)%matrix, mo_coeff, &
+               CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, matrix_h(ispin)%matrix, mo_coeff, &
                                    0.0_dp, dbcsr_deriv, last_column=k_alpha)
 
                scaling = 1.0_dp

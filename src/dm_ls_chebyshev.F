@@ -12,6 +12,7 @@
 !> \author Jinwoong Cha
 ! **************************************************************************************************
 MODULE dm_ls_chebyshev
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE arnoldi_api,                     ONLY: arnoldi_extremal
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_get_default_unit_nr,&
@@ -187,9 +188,9 @@ CONTAINS
 
       DO ispin = 1, SIZE(ls_scf_env%matrix_ks)
          ! create matrix_F=inv(sqrt(S))*H*inv(sqrt(S))
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_ks(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_ks(ispin), &
                              0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
                              0.0_dp, matrix_F, filter_eps=ls_scf_env%eps_filter)
 
          ! find largest and smallest eigenvalues
@@ -270,7 +271,7 @@ CONTAINS
 
          DO icheb = 2, ncheb - 1
             t1 = m_walltime()
-            CALL dbcsr_multiply("N", "N", 2.0_dp, matrix_F, matrix_tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 2.0_dp, matrix_F, matrix_tmp2, &
                                 -1.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter) !matrix multiplication(Recursion)
             CALL dbcsr_copy(matrix_tmp3, matrix_tmp1)
             CALL dbcsr_copy(matrix_tmp1, matrix_tmp2)
@@ -307,9 +308,9 @@ CONTAINS
             ELSE
                orbital_occ = 1.0_dp
             END IF
-            CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, matrix_dummy2(iwindow), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, matrix_dummy2(iwindow), &
                                 0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", orbital_occ, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
+            CALL cp_dbcsr_multiply("N", "N", orbital_occ, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
                                 0.0_dp, matrix_tmp2, filter_eps=ls_scf_env%eps_filter)
             CALL dbcsr_copy(matrix_dummy2(iwindow), matrix_tmp2)
 

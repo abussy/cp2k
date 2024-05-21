@@ -12,6 +12,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE minbas_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
@@ -223,7 +224,7 @@ CONTAINS
 
             ! SMAO = Overlap*MAOs
             CALL dbcsr_create(smao, name="S*MAO", template=mao_coef(1)%matrix)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, smat, mao_coef(ispin)%matrix, 0.0_dp, smao)
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, smat, mao_coef(ispin)%matrix, 0.0_dp, smao)
             ! a(nj)* = C(vn)(T) * SMAO(vj)
             CALL copy_dbcsr_to_fm(smao, fm1)
             CALL get_mo_set(mos(ispin), mo_coeff=fm_mos)

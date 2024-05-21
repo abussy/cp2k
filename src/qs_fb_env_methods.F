@@ -6,6 +6,7 @@
 !--------------------------------------------------------------------------------------------------!
 
 MODULE qs_fb_env_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
 
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind
@@ -386,17 +387,17 @@ CONTAINS
       DO ispin = 1, nspin
 
          ! construct filtered KS matrix
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              matrix_ks(ispin)%matrix, matrix_filter(ispin)%matrix, &
                              0.0_dp, matrix_tmp)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              matrix_filter(ispin)%matrix, matrix_tmp, &
                              0.0_dp, matrix_filtered_ks)
          ! construct filtered S_matrix
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              matrix_s(1)%matrix, matrix_filter(ispin)%matrix, &
                              0.0_dp, matrix_tmp)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              matrix_filter(ispin)%matrix, matrix_tmp, &
                              0.0_dp, matrix_filtered_s)
 
@@ -476,10 +477,10 @@ CONTAINS
          CALL calculate_density_matrix(mos_filtered(ispin), &
                                        matrix_filtered_p)
          ! convert back to full basis p
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              matrix_filter(ispin)%matrix, matrix_filtered_p, &
                              0.0_dp, matrix_tmp)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                              matrix_tmp, matrix_filter(ispin)%matrix, &
                              0.0_dp, scf_env%p_mix_new(ispin, 1)%matrix, &
                              retain_sparsity=.TRUE.)

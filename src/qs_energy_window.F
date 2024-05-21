@@ -13,6 +13,7 @@
 !> \author Joost VandeVondele (10.2003)
 ! **************************************************************************************************
 MODULE qs_energy_window
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               copy_fm_to_dbcsr
@@ -167,11 +168,11 @@ CONTAINS
       CALL dbcsr_desymmetrize(matrix_ks(1)%matrix, matrix_ks_nosym)
 
       !switching to orthonormal basis
-      CALL dbcsr_multiply("N", "N", one, S_minus_half, matrix_ks_nosym, zero, tmp, filter_eps=filter_eps)
-      CALL dbcsr_multiply("N", "N", one, tmp, S_minus_half, zero, matrix_ks_nosym, filter_eps=filter_eps)
+      CALL cp_dbcsr_multiply("N", "N", one, S_minus_half, matrix_ks_nosym, zero, tmp, filter_eps=filter_eps)
+      CALL cp_dbcsr_multiply("N", "N", one, tmp, S_minus_half, zero, matrix_ks_nosym, filter_eps=filter_eps)
       CALL copy_dbcsr_to_fm(matrix_ks_nosym, matrix_ks_fm)
-      CALL dbcsr_multiply("N", "N", one, S_half, rho_ao(1)%matrix, zero, tmp, filter_eps=filter_eps)
-      CALL dbcsr_multiply("N", "N", one, tmp, S_half, zero, rho_ao_ortho, filter_eps=filter_eps)
+      CALL cp_dbcsr_multiply("N", "N", one, S_half, rho_ao(1)%matrix, zero, tmp, filter_eps=filter_eps)
+      CALL cp_dbcsr_multiply("N", "N", one, tmp, S_half, zero, rho_ao_ortho, filter_eps=filter_eps)
       CALL copy_dbcsr_to_fm(rho_ao_ortho, rho_ao_ortho_fm)
 
       !diagonalize the full ks matrix

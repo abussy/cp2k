@@ -11,6 +11,7 @@
 ! **************************************************************************************************
 
 MODULE xas_tdp_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_types,                      ONLY: admm_type
    USE admm_utils,                      ONLY: admm_correct_for_eigenvalues,&
                                               admm_uncorrect_for_eigenvalues
@@ -819,13 +820,13 @@ CONTAINS
 
 !     In the case of spin-restricted calculations, rho_ao includes double occupency => 0.5 prefactor
       fact = -0.5_dp; IF (do_os) fact = -1.0_dp
-      CALL dbcsr_multiply('N', 'N', fact, matrix_s(1)%matrix, rho_ao(1)%matrix, 0.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', fact, matrix_s(1)%matrix, rho_ao(1)%matrix, 0.0_dp, &
                           xas_tdp_env%q_projector(1)%matrix, filter_eps=xas_tdp_control%eps_filter)
       CALL dbcsr_add_on_diag(xas_tdp_env%q_projector(1)%matrix, 1.0_dp)
       CALL dbcsr_finalize(xas_tdp_env%q_projector(1)%matrix)
 
       IF (do_os) THEN
-         CALL dbcsr_multiply('N', 'N', fact, matrix_s(1)%matrix, rho_ao(2)%matrix, 0.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', fact, matrix_s(1)%matrix, rho_ao(2)%matrix, 0.0_dp, &
                              xas_tdp_env%q_projector(2)%matrix, filter_eps=xas_tdp_control%eps_filter)
          CALL dbcsr_add_on_diag(xas_tdp_env%q_projector(2)%matrix, 1.0_dp)
          CALL dbcsr_finalize(xas_tdp_env%q_projector(2)%matrix)

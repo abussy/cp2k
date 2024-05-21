@@ -6,6 +6,7 @@
 !--------------------------------------------------------------------------------------------------!
 
 MODULE optimize_dmfet_potential
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_blacs_env,                    ONLY: cp_blacs_env_create,&
                                               cp_blacs_env_release,&
                                               cp_blacs_env_type
@@ -326,7 +327,7 @@ CONTAINS
 
       CALL copy_fm_to_dbcsr(opt_dmfet%dm_diff, diff_dbcsr, keep_sparsity=.FALSE.)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, diff_dbcsr, matrix_s(1)%matrix, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, diff_dbcsr, matrix_s(1)%matrix, &
                           0.0_dp, dm_s)
 
       CALL dbcsr_trace(dm_s, trace)
@@ -334,7 +335,7 @@ CONTAINS
       IF (opt_dmfet%open_shell_embed) THEN
          CALL copy_fm_to_dbcsr(opt_dmfet%dm_diff_beta, diff_dbcsr, keep_sparsity=.FALSE.)
 
-         CALL dbcsr_multiply("N", "N", 1.0_dp, diff_dbcsr, matrix_s(1)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, diff_dbcsr, matrix_s(1)%matrix, &
                              0.0_dp, dm_s)
 
          CALL dbcsr_trace(dm_s, trace)

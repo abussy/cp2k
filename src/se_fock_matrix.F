@@ -15,6 +15,7 @@
 !>      Teodoro Laino (05.2009) [tlaino] - Split and module reorganization
 ! **************************************************************************************************
 MODULE se_fock_matrix
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_kind_types,               ONLY: atomic_kind_type
    USE atprop_types,                    ONLY: atprop_array_init,&
                                               atprop_type
@@ -249,7 +250,7 @@ CONTAINS
                   CPABORT("")
                END IF
                CALL dbcsr_get_info(mo_coeff, nfullcols_total=ncol_global)
-               CALL dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin)%matrix, mo_coeff, &
+               CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin)%matrix, mo_coeff, &
                                    0.0_dp, mo_derivs(ispin)%matrix)
             END DO
          END IF

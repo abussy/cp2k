@@ -13,6 +13,7 @@
 !> \author Joost VandeVondele (09.2002)
 ! **************************************************************************************************
 MODULE preconditioner_makes
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE arnoldi_api,                     ONLY: arnoldi_data_type,&
                                               arnoldi_ev,&
                                               deallocate_arnoldi_data,&
@@ -729,15 +730,15 @@ CONTAINS
       ! Precompute some matrices
       ! S*C, if orthonormal this will be simply C so a copy will do
       IF (PRESENT(matrix_s)) THEN
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s, mo_dbcsr, 0.0_dp, dbcsr_sc)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s, mo_dbcsr, 0.0_dp, dbcsr_sc)
       ELSE
          CALL dbcsr_copy(dbcsr_sc, mo_dbcsr)
       END IF
 
 !----------------------------compute the occupied subspace and shift it ------------------------------------
       ! cT*H*C which will be used to shift the occupied states to 0
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_h, mo_dbcsr, 0.0_dp, dbcsr_hc)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, mo_dbcsr, dbcsr_hc, 0.0_dp, dbcsr_cThc)
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_h, mo_dbcsr, 0.0_dp, dbcsr_hc)
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mo_dbcsr, dbcsr_hc, 0.0_dp, dbcsr_cThc)
 
       ! Compute the Energy of the HOMO. We will use this as a reference energy
       ALLOCATE (matrices(1))
@@ -758,8 +759,8 @@ CONTAINS
       ! Lets shift the occupied states a bit further up, -1.0 because we gonna subtract it from H
       CALL dbcsr_add_on_diag(dbcsr_cThc, -0.5_dp)
       ! Get the AO representation of the shift (see above why S is needed), W-matrix like object
-      CALL dbcsr_multiply("N", "N", 2.0_dp, dbcsr_sc, dbcsr_cThc, 0.0_dp, dbcsr_hc)
-      CALL dbcsr_multiply("N", "T", -1.0_dp, dbcsr_hc, dbcsr_sc, 1.0_dp, preconditioner_env%sparse_matrix)
+      CALL cp_dbcsr_multiply("N", "N", 2.0_dp, dbcsr_sc, dbcsr_cThc, 0.0_dp, dbcsr_hc)
+      CALL cp_dbcsr_multiply("N", "T", -1.0_dp, dbcsr_hc, dbcsr_sc, 1.0_dp, preconditioner_env%sparse_matrix)
 
 !-------------------------------------compute eigenvalues of H ----------------------------------------------
       ! Setup the arnoldi procedure to compute the lowest ev. if S is present this has to be the generalized ev

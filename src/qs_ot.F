@@ -13,6 +13,8 @@
 !> \author Joost VandeVondele (06.2002)
 ! **************************************************************************************************
 MODULE qs_ot
+   USE cp_dbcsr_multiplication,         ONLY: cp_dbcsr_multiply
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE arnoldi_api,                     ONLY: arnoldi_extremal
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert,&
@@ -157,7 +159,7 @@ CONTAINS
       CALL group%sum(f2)
       !
       !
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, C, C_NEW, 0.0_dp, GU)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, C, C_NEW, 0.0_dp, GU)
       !
       ! antisymetrize
       CALL dbcsr_get_info(GU, distribution=dist)
@@ -188,7 +190,7 @@ CONTAINS
       CALL dbcsr_copy(Gp1, GU)
       DO i = 2, taylor_order
          ! new power of G
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, GU, Gp1, 0.0_dp, Gp2)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, GU, Gp1, 0.0_dp, Gp2)
          CALL dbcsr_copy(Gp1, Gp2)
          ! add to the taylor expansion so far
          expfactor = expfactor/REAL(i, KIND=dp)
@@ -199,20 +201,20 @@ CONTAINS
       END DO
       !
       ! rotate MOs
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, C_NEW, U, 0.0_dp, C)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, C_NEW, U, 0.0_dp, C)
       CALL dbcsr_copy(C_NEW, C)
       !
       ! rotate SC
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, SC, U, 0.0_dp, C)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, SC, U, 0.0_dp, C)
       CALL dbcsr_copy(SC, C)
       !
       ! rotate D_i
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, D, U, 0.0_dp, C)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, D, U, 0.0_dp, C)
       CALL dbcsr_copy(D, C)
       !
       ! rotate G_i-1
       IF (ASSOCIATED(G_OLD)) THEN
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, G_OLD, U, 0.0_dp, C)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, G_OLD, U, 0.0_dp, C)
          CALL dbcsr_copy(G_OLD, C)
       END IF
       !
@@ -304,14 +306,14 @@ CONTAINS
       END DO
       CALL dbcsr_copy(W, V)
       CALL dbcsr_scale_by_vector(V, alpha=fun, side='right')
-      CALL dbcsr_multiply('N', 'T', 1.0_dp, W, V, 0.0_dp, P)
+      CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, W, V, 0.0_dp, P)
       !
       ! Update C
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, C_OLD, P, 0.0_dp, C_NEW)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, C_OLD, P, 0.0_dp, C_NEW)
       !
       ! Update SC if needed
       IF (update) THEN
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, SC, P, 0.0_dp, C_TMP)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, SC, P, 0.0_dp, C_TMP)
          CALL dbcsr_copy(SC, C_TMP)
       END IF
       !
@@ -382,7 +384,7 @@ CONTAINS
          IF (irefine .EQ. 1) THEN
             CALL dbcsr_copy(FT, FY, name='FT')
          ELSE
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, FT, FY, 0.0_dp, BUF1)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, FT, FY, 0.0_dp, BUF1)
             IF (qs_ot_env%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
                occ_in = dbcsr_get_occupation(buf1)
                CALL dbcsr_filter(buf1, qs_ot_env%settings%eps_irac_filter_matrix)
@@ -397,13 +399,13 @@ CONTAINS
          END IF
          !
          ! P = FY^T * P * FY
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, P, FY, 0.0_dp, BUF_NOSYM)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, P, FY, 0.0_dp, BUF_NOSYM)
          IF (qs_ot_env%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(buf_nosym)
             CALL dbcsr_filter(buf_nosym, qs_ot_env%settings%eps_irac_filter_matrix)
             occ_out = dbcsr_get_occupation(buf_nosym)
          END IF
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, FY, BUF_NOSYM, 0.0_dp, P)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, FY, BUF_NOSYM, 0.0_dp, P)
          IF (qs_ot_env%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(p)
             CALL dbcsr_filter(p, qs_ot_env%settings%eps_irac_filter_matrix)
@@ -436,7 +438,7 @@ CONTAINS
       END DO
       !
       ! C_NEW = C_NEW * FT * rescale
-      CALL dbcsr_multiply('N', 'N', rescale, C_OLD, FT, 0.0_dp, C_NEW)
+      CALL cp_dbcsr_multiply('N', 'N', rescale, C_OLD, FT, 0.0_dp, C_NEW)
       IF (qs_ot_env%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
          occ_in = dbcsr_get_occupation(c_new)
          CALL dbcsr_filter(c_new, qs_ot_env%settings%eps_irac_filter_matrix)
@@ -445,7 +447,7 @@ CONTAINS
       !
       ! update SC = SC * FY * rescale
       IF (update) THEN
-         CALL dbcsr_multiply('N', 'N', rescale, SC, FT, 0.0_dp, C_TMP)
+         CALL cp_dbcsr_multiply('N', 'N', rescale, SC, FT, 0.0_dp, C_TMP)
          IF (qs_ot_env%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(c_tmp)
             CALL dbcsr_filter(c_tmp, qs_ot_env%settings%eps_irac_filter_matrix)
@@ -550,7 +552,7 @@ CONTAINS
       !
       ! compute SC = S*C
       IF (ASSOCIATED(S)) THEN
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, S, C_OLD, 0.0_dp, SC)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, S, C_OLD, 0.0_dp, SC)
          IF (qs_ot_env1%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(sc)
             CALL dbcsr_filter(sc, qs_ot_env1%settings%eps_irac_filter_matrix)
@@ -561,7 +563,7 @@ CONTAINS
       END IF
       !
       ! compute P = C'*SC
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, C_OLD, SC, 0.0_dp, P)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, C_OLD, SC, 0.0_dp, P)
       IF (qs_ot_env1%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
          occ_in = dbcsr_get_occupation(p)
          CALL dbcsr_filter(p, qs_ot_env1%settings%eps_irac_filter_matrix)
@@ -629,7 +631,7 @@ CONTAINS
       CASE (2)
          ! C_out = C_in * ( 15/8 * I - 10/8 * P + 3/8 * P^2)
          r = 3.0_dp/8.0_dp
-         CALL dbcsr_multiply('N', 'N', r, P, P, 0.0_dp, FY)
+         CALL cp_dbcsr_multiply('N', 'N', r, P, P, 0.0_dp, FY)
          IF (eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(fy)
             CALL dbcsr_filter(fy, eps_irac_filter_matrix)
@@ -641,14 +643,14 @@ CONTAINS
          CALL dbcsr_add_on_diag(FY, alpha_scalar=r)
       CASE (3)
          ! C_out = C_in * ( 35/16 * I - 35/16 * P + 21/16 * P^2 - 5/16 P^3)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, P, P, 0.0_dp, P2)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, P, P, 0.0_dp, P2)
          IF (eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(p2)
             CALL dbcsr_filter(p2, eps_irac_filter_matrix)
             occ_out = dbcsr_get_occupation(p2)
          END IF
          r = -5.0_dp/16.0_dp
-         CALL dbcsr_multiply('N', 'N', r, P2, P, 0.0_dp, FY)
+         CALL cp_dbcsr_multiply('N', 'N', r, P2, P, 0.0_dp, FY)
          IF (eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(fy)
             CALL dbcsr_filter(fy, eps_irac_filter_matrix)
@@ -663,7 +665,7 @@ CONTAINS
       CASE (4)
          ! C_out = C_in * ( 315/128 * I - 420/128 * P + 378/128 * P^2 - 180/128 P^3 + 35/128 P^4 )
          !       = C_in * ( 315/128 * I - 420/128 * P + 378/128 * P^2 + ( - 180/128 * P + 35/128 * P^2 ) * P^2 )
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, P, P, 0.0_dp, P2) ! P^2
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, P, P, 0.0_dp, P2) ! P^2
          IF (eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(p2)
             CALL dbcsr_filter(p2, eps_irac_filter_matrix)
@@ -673,7 +675,7 @@ CONTAINS
          CALL dbcsr_add(T, P, alpha_scalar=0.0_dp, beta_scalar=r) ! T=-180/128*P
          r = 35.0_dp/128.0_dp
          CALL dbcsr_add(T, P2, alpha_scalar=1.0_dp, beta_scalar=r) ! T=T+35/128*P^2
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, T, P2, 0.0_dp, FY) ! Y=T*P^2
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, T, P2, 0.0_dp, FY) ! Y=T*P^2
          IF (eps_irac_filter_matrix .GT. 0.0_dp) THEN
             occ_in = dbcsr_get_occupation(fy)
             CALL dbcsr_filter(fy, eps_irac_filter_matrix)
@@ -722,14 +724,14 @@ CONTAINS
       G_dp => qs_ot_env%buf1_n_k_dp ! buffer dp
 
       ! C'*(H*C)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, C, HC, 0.0_dp, CHC)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, C, HC, 0.0_dp, CHC)
       IF (qs_ot_env%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
          occ_in = dbcsr_get_occupation(chc)
          CALL dbcsr_filter(chc, qs_ot_env%settings%eps_irac_filter_matrix)
          occ_out = dbcsr_get_occupation(chc)
       END IF
       ! (S*C)*(C'*H*C)
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, SC, CHC, 0.0_dp, G)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, SC, CHC, 0.0_dp, G)
       IF (qs_ot_env%settings%eps_irac_filter_matrix .GT. 0.0_dp) THEN
          occ_in = dbcsr_get_occupation(g)
          CALL dbcsr_filter(g, qs_ot_env%settings%eps_irac_filter_matrix)
@@ -765,7 +767,7 @@ CONTAINS
       CALL dbcsr_get_info(matrix_x, nfullrows_total=n, nfullcols_total=k)
 
       ! get the overlap
-      CALL dbcsr_multiply('T', 'N', rone, matrix_x, matrix_sx, rzero, &
+      CALL cp_dbcsr_multiply('T', 'N', rone, matrix_x, matrix_sx, rzero, &
                           qs_ot_env%matrix_p)
 
       ! get an upper bound for the largest eigenvalue
@@ -1033,23 +1035,23 @@ CONTAINS
       ! this should be cheaper for large basis sets
       IF (qs_ot_env%settings%do_rotation) THEN
          matrix_kk => qs_ot_env%matrix_buf1
-         CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_cosp, &
+         CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_cosp, &
                              qs_ot_env%rot_mat_u, rzero, matrix_kk)
       ELSE
          matrix_kk => qs_ot_env%matrix_cosp
       END IF
 
-      CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_c0, matrix_kk, &
+      CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_c0, matrix_kk, &
                           rzero, matrix_c)
 
       IF (qs_ot_env%settings%do_rotation) THEN
          matrix_kk => qs_ot_env%matrix_buf1
-         CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_sinp, &
+         CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_sinp, &
                              qs_ot_env%rot_mat_u, rzero, matrix_kk)
       ELSE
          matrix_kk => qs_ot_env%matrix_sinp
       END IF
-      CALL dbcsr_multiply('N', 'N', rone, matrix_x, matrix_kk, &
+      CALL cp_dbcsr_multiply('N', 'N', rone, matrix_x, matrix_kk, &
                           rone, matrix_c)
 
       CALL timestop(handle)
@@ -1094,7 +1096,7 @@ CONTAINS
          CALL dbcsr_init_p(matrix_hc_local)
          CALL dbcsr_copy(matrix_hc_local, matrix_hc, name='matrix_hc_local')
          CALL dbcsr_set(matrix_hc_local, 0.0_dp)
-         CALL dbcsr_multiply('N', 'T', rone, matrix_gx, qs_ot_env%rot_mat_u, rzero, matrix_hc_local)
+         CALL cp_dbcsr_multiply('N', 'T', rone, matrix_gx, qs_ot_env%rot_mat_u, rzero, matrix_hc_local)
       ELSE
          matrix_hc_local => matrix_hc
       END IF
@@ -1122,7 +1124,7 @@ CONTAINS
             CALL apply_preconditioner(qs_ot_env%preconditioner, qs_ot_env%matrix_sc0, &
                                       qs_ot_env%matrix_psc0)
          END IF
-         CALL dbcsr_multiply('T', 'N', rone, &
+         CALL cp_dbcsr_multiply('T', 'N', rone, &
                              qs_ot_env%matrix_sc0, matrix_target, &
                              rzero, qs_ot_env%matrix_os)
          CALL cp_dbcsr_cholesky_decompose(qs_ot_env%matrix_os, &
@@ -1132,11 +1134,11 @@ CONTAINS
                                        upper_to_full=.TRUE.)
          qs_ot_env%os_valid = .TRUE.
       END IF
-      CALL dbcsr_multiply('T', 'N', rone, matrix_target, matrix_gx, &
+      CALL cp_dbcsr_multiply('T', 'N', rone, matrix_target, matrix_gx, &
                           rzero, qs_ot_env%matrix_buf1_ortho)
-      CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_os, &
+      CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_os, &
                           qs_ot_env%matrix_buf1_ortho, rzero, qs_ot_env%matrix_buf2_ortho)
-      CALL dbcsr_multiply('N', 'N', -rone, qs_ot_env%matrix_sc0, &
+      CALL cp_dbcsr_multiply('N', 'N', -rone, qs_ot_env%matrix_sc0, &
                           qs_ot_env%matrix_buf2_ortho, rone, matrix_gx)
       ! also treat the rot_mat gradient here
       IF (qs_ot_env%settings%do_rotation) THEN
@@ -1177,13 +1179,13 @@ CONTAINS
 
       ! go for the derivative now
       ! this de/dc*(dX/dx)*sinp
-      CALL dbcsr_multiply('N', 'N', rone, matrix_hc, qs_ot_env%matrix_sinp, rzero, matrix_gx)
+      CALL cp_dbcsr_multiply('N', 'N', rone, matrix_hc, qs_ot_env%matrix_sinp, rzero, matrix_gx)
       ! overlap hc*x
-      CALL dbcsr_multiply('T', 'N', rone, matrix_hc, matrix_x, rzero, qs_ot_env%matrix_buf2)
+      CALL cp_dbcsr_multiply('T', 'N', rone, matrix_hc, matrix_x, rzero, qs_ot_env%matrix_buf2)
       ! get it in the basis of the eigenvectors
-      CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_buf2, qs_ot_env%matrix_r, &
+      CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_buf2, qs_ot_env%matrix_r, &
                           rzero, qs_ot_env%matrix_buf1)
-      CALL dbcsr_multiply('T', 'N', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
+      CALL cp_dbcsr_multiply('T', 'N', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
                           rzero, qs_ot_env%matrix_buf2)
 
       ! get the schur product of O_uv*B_uv
@@ -1191,12 +1193,12 @@ CONTAINS
                                   qs_ot_env%matrix_buf3)
 
       ! overlap hc*c0
-      CALL dbcsr_multiply('T', 'N', rone, matrix_hc, qs_ot_env%matrix_c0, rzero, &
+      CALL cp_dbcsr_multiply('T', 'N', rone, matrix_hc, qs_ot_env%matrix_c0, rzero, &
                           qs_ot_env%matrix_buf2)
       ! get it in the basis of the eigenvectors
-      CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_buf2, qs_ot_env%matrix_r, &
+      CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_buf2, qs_ot_env%matrix_r, &
                           rzero, qs_ot_env%matrix_buf1)
-      CALL dbcsr_multiply('T', 'N', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
+      CALL cp_dbcsr_multiply('T', 'N', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
                           rzero, qs_ot_env%matrix_buf2)
 
       CALL dbcsr_hadamard_product(qs_ot_env%matrix_buf2, qs_ot_env%matrix_cosp_b, &
@@ -1207,9 +1209,9 @@ CONTAINS
                      alpha_scalar=rone, beta_scalar=rone)
 
       ! get the b in the eigenvector basis
-      CALL dbcsr_multiply('N', 'T', rone, qs_ot_env%matrix_buf3, qs_ot_env%matrix_r, &
+      CALL cp_dbcsr_multiply('N', 'T', rone, qs_ot_env%matrix_buf3, qs_ot_env%matrix_r, &
                           rzero, qs_ot_env%matrix_buf1)
-      CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
+      CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
                           rzero, qs_ot_env%matrix_buf3)
       CALL dbcsr_get_info(qs_ot_env%matrix_buf3, distribution=dist)
       CALL dbcsr_transposed(qs_ot_env%matrix_buf1, qs_ot_env%matrix_buf3, &
@@ -1219,7 +1221,7 @@ CONTAINS
                      alpha_scalar=rone, beta_scalar=rone)
 
       ! and add to the derivative
-      CALL dbcsr_multiply('N', 'N', rone, matrix_sx, qs_ot_env%matrix_buf3, &
+      CALL cp_dbcsr_multiply('N', 'N', rone, matrix_sx, qs_ot_env%matrix_buf3, &
                           rone, matrix_gx)
       CALL timestop(handle)
 
@@ -1254,7 +1256,7 @@ CONTAINS
 
       ! go for the derivative now
       ! this de/dc*(dX/dx)*sinp i.e. zeroth order
-      CALL dbcsr_multiply('N', 'N', rone, matrix_hc, qs_ot_env%matrix_sinp, rzero, matrix_gx)
+      CALL cp_dbcsr_multiply('N', 'N', rone, matrix_hc, qs_ot_env%matrix_sinp, rzero, matrix_gx)
 
       IF (qs_ot_env%taylor_order .LE. 0) THEN
          CALL timestop(handle)
@@ -1269,7 +1271,7 @@ CONTAINS
       matrix_right => qs_ot_env%matrix_sinp_b
 
       ! overlap hc*x and add its transpose to matrix_left
-      CALL dbcsr_multiply('T', 'N', rone, matrix_hc, matrix_x, rzero, matrix_left)
+      CALL cp_dbcsr_multiply('T', 'N', rone, matrix_hc, matrix_x, rzero, matrix_left)
       CALL dbcsr_get_info(matrix_left, distribution=dist)
       CALL dbcsr_transposed(qs_ot_env%matrix_buf1, matrix_left, &
                             shallow_data_copy=.FALSE., use_distribution=dist, &
@@ -1289,8 +1291,8 @@ CONTAINS
       !   ...
       DO i = 2, qs_ot_env%taylor_order
          sinfactor = sinfactor*(-1.0_dp)/REAL(2*i*(2*i + 1), KIND=dp)
-         CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_p, matrix_left, rzero, qs_ot_env%matrix_buf1)
-         CALL dbcsr_multiply('N', 'N', rone, matrix_right, qs_ot_env%matrix_p, rzero, matrix_left)
+         CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_p, matrix_left, rzero, qs_ot_env%matrix_buf1)
+         CALL cp_dbcsr_multiply('N', 'N', rone, matrix_right, qs_ot_env%matrix_p, rzero, matrix_left)
          CALL dbcsr_copy(matrix_right, matrix_left)
          CALL dbcsr_add(matrix_left, qs_ot_env%matrix_buf1, &
                         1.0_dp, 1.0_dp)
@@ -1299,7 +1301,7 @@ CONTAINS
       END DO
 
       ! overlap hc*c0 and add its transpose to matrix_left
-      CALL dbcsr_multiply('T', 'N', rone, matrix_hc, qs_ot_env%matrix_c0, rzero, matrix_left)
+      CALL cp_dbcsr_multiply('T', 'N', rone, matrix_hc, qs_ot_env%matrix_c0, rzero, matrix_left)
       CALL dbcsr_get_info(matrix_left, distribution=dist)
       CALL dbcsr_transposed(qs_ot_env%matrix_buf1, matrix_left, &
                             shallow_data_copy=.FALSE., use_distribution=dist, &
@@ -1318,8 +1320,8 @@ CONTAINS
       !   ...
       DO i = 2, qs_ot_env%taylor_order
          cosfactor = cosfactor*(-1.0_dp)/REAL(2*i*(2*i - 1), KIND=dp)
-         CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_p, matrix_left, rzero, qs_ot_env%matrix_buf1)
-         CALL dbcsr_multiply('N', 'N', rone, matrix_right, qs_ot_env%matrix_p, rzero, matrix_left)
+         CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_p, matrix_left, rzero, qs_ot_env%matrix_buf1)
+         CALL cp_dbcsr_multiply('N', 'N', rone, matrix_right, qs_ot_env%matrix_p, rzero, matrix_left)
          CALL dbcsr_copy(matrix_right, matrix_left)
          CALL dbcsr_add(matrix_left, qs_ot_env%matrix_buf1, 1.0_dp, 1.0_dp)
          CALL dbcsr_add(qs_ot_env%matrix_r, matrix_left, &
@@ -1327,7 +1329,7 @@ CONTAINS
       END DO
 
       ! and add to the derivative
-      CALL dbcsr_multiply('N', 'N', rone, matrix_sx, qs_ot_env%matrix_r, rone, matrix_gx)
+      CALL cp_dbcsr_multiply('N', 'N', rone, matrix_sx, qs_ot_env%matrix_r, rone, matrix_gx)
 
       CALL timestop(handle)
 
@@ -1376,7 +1378,7 @@ CONTAINS
 
       DO i = 2, qs_ot_env%taylor_order
          ! new power of p
-         CALL dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_p, qs_ot_env%matrix_r, &
+         CALL cp_dbcsr_multiply('N', 'N', rone, qs_ot_env%matrix_p, qs_ot_env%matrix_r, &
                              rzero, qs_ot_env%matrix_buf1)
          CALL dbcsr_copy(qs_ot_env%matrix_r, qs_ot_env%matrix_buf1)
          ! add to the taylor expansion so far
@@ -1430,7 +1432,7 @@ CONTAINS
       END DO
       CALL dbcsr_copy(qs_ot_env%matrix_buf1, qs_ot_env%matrix_r)
       CALL dbcsr_scale_by_vector(qs_ot_env%matrix_buf1, alpha=qs_ot_env%dum, side='right')
-      CALL dbcsr_multiply('N', 'T', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
+      CALL cp_dbcsr_multiply('N', 'T', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
                           rzero, qs_ot_env%matrix_cosp)
 
 !$OMP     PARALLEL DO DEFAULT(NONE) PRIVATE(i) SHARED(k,qs_ot_env)
@@ -1439,7 +1441,7 @@ CONTAINS
       END DO
       CALL dbcsr_copy(qs_ot_env%matrix_buf1, qs_ot_env%matrix_r)
       CALL dbcsr_scale_by_vector(qs_ot_env%matrix_buf1, alpha=qs_ot_env%dum, side='right')
-      CALL dbcsr_multiply('N', 'T', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
+      CALL cp_dbcsr_multiply('N', 'T', rone, qs_ot_env%matrix_r, qs_ot_env%matrix_buf1, &
                           rzero, qs_ot_env%matrix_sinp)
 
       CALL dbcsr_copy(qs_ot_env%matrix_cosp_b, qs_ot_env%matrix_cosp)

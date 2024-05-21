@@ -13,6 +13,7 @@
 !> \author Joost VandeVondele
 ! **************************************************************************************************
 MODULE dm_ls_scf
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE arnoldi_api,                     ONLY: arnoldi_extremal
    USE bibliography,                    ONLY: Kolafa2004,&
                                               Kuhne2007,&
@@ -330,9 +331,9 @@ CONTAINS
                   ! need to get P in the non-orthogonal basis if it was stored differently
                   CALL dbcsr_create(matrix_tmp1, template=ls_scf_env%matrix_s, &
                                     matrix_type=dbcsr_type_no_symmetry)
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_p(ispin), &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_p(ispin), &
                                       0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
                                       0.0_dp, ls_scf_env%matrix_p(ispin), &
                                       filter_eps=ls_scf_env%eps_filter)
                   CALL dbcsr_release(matrix_tmp1)
@@ -421,9 +422,9 @@ CONTAINS
                   CALL apply_matrix_preconditioner(ls_scf_env%scf_history%matrix(ispin, istore), "backward", &
                                                    ls_scf_env%matrix_bs_sqrt, ls_scf_env%matrix_bs_sqrt_inv)
                END IF
-               CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt, ls_scf_env%scf_history%matrix(ispin, istore), &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt, ls_scf_env%scf_history%matrix(ispin, istore), &
                                    0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
-               CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt, &
                                    0.0_dp, ls_scf_env%scf_history%matrix(ispin, istore), &
                                    filter_eps=ls_scf_env%eps_filter)
                CALL dbcsr_release(matrix_tmp1)
@@ -920,9 +921,9 @@ CONTAINS
 
       DO ispin = 1, nspin
          ! ortho basis ks
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_ks(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_ks(ispin), &
                              0.0_dp, matrix_tmp, filter_eps=ls_scf_env%eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, ls_scf_env%matrix_s_sqrt_inv, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, ls_scf_env%matrix_s_sqrt_inv, &
                              0.0_dp, matrix_k, filter_eps=ls_scf_env%eps_filter)
 
          ! extremal eigenvalues ks
@@ -930,9 +931,9 @@ CONTAINS
                                threshold=ls_scf_env%eps_lanczos, converged=converged)
 
          ! ortho basis p
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt, ls_scf_env%matrix_p(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt, ls_scf_env%matrix_p(ispin), &
                              0.0_dp, matrix_tmp, filter_eps=ls_scf_env%eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, ls_scf_env%matrix_s_sqrt, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, ls_scf_env%matrix_s_sqrt, &
                              0.0_dp, matrix_p, filter_eps=ls_scf_env%eps_filter)
          IF (nspin == 1) CALL dbcsr_scale(matrix_p, 0.5_dp)
 
@@ -1068,13 +1069,13 @@ CONTAINS
          CALL report_matrix_sparsity(ls_scf_env%matrix_p(ispin), unit_nr, title, &
                                      ls_scf_env%eps_filter)
 
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s, ls_scf_env%matrix_p(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s, ls_scf_env%matrix_p(ispin), &
                              0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
 
          WRITE (title, '(A,I3,A)') "S * P(", ispin, ")"
          CALL report_matrix_sparsity(matrix_tmp1, unit_nr, title, ls_scf_env%eps_filter)
 
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s, &
                              0.0_dp, matrix_tmp2, filter_eps=ls_scf_env%eps_filter)
          WRITE (title, '(A,I3,A)') "S * P(", ispin, ") * S"
          CALL report_matrix_sparsity(matrix_tmp2, unit_nr, title, ls_scf_env%eps_filter)
@@ -1084,7 +1085,7 @@ CONTAINS
          CALL report_matrix_sparsity(ls_scf_env%matrix_s_inv, unit_nr, "inv(S)", &
                                      ls_scf_env%eps_filter)
          DO ispin = 1, nspin
-            CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_inv, ls_scf_env%matrix_ks(ispin), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_inv, ls_scf_env%matrix_ks(ispin), &
                                 0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
 
             WRITE (title, '(A,I3,A)') "inv(S) * H(", ispin, ")"
@@ -1100,18 +1101,18 @@ CONTAINS
                                      ls_scf_env%eps_filter)
 
          DO ispin = 1, nspin
-            CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_ks(ispin), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_ks(ispin), &
                                 0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
                                 0.0_dp, matrix_tmp2, filter_eps=ls_scf_env%eps_filter)
             WRITE (title, '(A,I3,A)') "inv(sqrt(S)) * H(", ispin, ") * inv(sqrt(S))"
             CALL report_matrix_sparsity(matrix_tmp2, unit_nr, title, ls_scf_env%eps_filter)
          END DO
 
          DO ispin = 1, nspin
-            CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt, ls_scf_env%matrix_p(ispin), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt, ls_scf_env%matrix_p(ispin), &
                                 0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt, &
                                 0.0_dp, matrix_tmp2, filter_eps=ls_scf_env%eps_filter)
             WRITE (title, '(A,I3,A)') "sqrt(S) * P(", ispin, ") * sqrt(S)"
             CALL report_matrix_sparsity(matrix_tmp2, unit_nr, title, ls_scf_env%eps_filter)
@@ -1211,9 +1212,9 @@ CONTAINS
          END IF
          CALL dbcsr_filter(matrix_tmp3, ls_scf_env%eps_filter)
 
-         CALL dbcsr_multiply("N", "N", scaling, ls_scf_env%matrix_p(ispin), matrix_tmp3, &
+         CALL cp_dbcsr_multiply("N", "N", scaling, ls_scf_env%matrix_p(ispin), matrix_tmp3, &
                              0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_p(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_p(ispin), &
                              0.0_dp, matrix_tmp2, filter_eps=ls_scf_env%eps_filter)
          CALL matrix_ls_to_qs(matrix_w(ispin)%matrix, matrix_tmp2, ls_scf_env%ls_mstruct, covariant=.FALSE.)
       END DO

@@ -15,6 +15,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE energy_corrections
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_dm_methods,                 ONLY: admm_dm_calc_rho_aux
    USE admm_methods,                    ONLY: admm_mo_calc_rho_aux
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
@@ -2517,12 +2518,12 @@ CONTAINS
       !
       CALL dbcsr_create(cgmat, name="TEMP matrix", template=mao_coef(1)%matrix)
       DO ispin = 1, nspins
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ec_env%matrix_s(1, 1)%matrix, mao_coef(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ec_env%matrix_s(1, 1)%matrix, mao_coef(ispin)%matrix, &
                              0.0_dp, cgmat)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, smat(ispin, 1)%matrix)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ec_env%matrix_ks(1, 1)%matrix, mao_coef(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, smat(ispin, 1)%matrix)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ec_env%matrix_ks(1, 1)%matrix, mao_coef(ispin)%matrix, &
                              0.0_dp, cgmat)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, ksmat(ispin, 1)%matrix)
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, ksmat(ispin, 1)%matrix)
       END DO
       CALL dbcsr_release(cgmat)
 
@@ -2574,11 +2575,11 @@ CONTAINS
       ! save pmat/wmat in full basis format
       CALL dbcsr_create(cgmat, name="TEMP matrix", template=mao_coef(1)%matrix)
       DO ispin = 1, nspins
-         CALL dbcsr_multiply("N", "N", 1.0_dp, mao_coef(ispin)%matrix, pmat(ispin, 1)%matrix, 0.0_dp, cgmat)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mao_coef(ispin)%matrix, pmat(ispin, 1)%matrix, 0.0_dp, cgmat)
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, &
                              ec_env%matrix_p(ispin, 1)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, mao_coef(ispin)%matrix, wmat(ispin, 1)%matrix, 0.0_dp, cgmat)
-         CALL dbcsr_multiply("N", "T", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mao_coef(ispin)%matrix, wmat(ispin, 1)%matrix, 0.0_dp, cgmat)
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, &
                              ec_env%matrix_w(ispin, 1)%matrix, retain_sparsity=.TRUE.)
       END DO
       CALL dbcsr_release(cgmat)
@@ -2675,20 +2676,20 @@ CONTAINS
       DO ispin = 1, nspins
          ! calculate ZHZ(T)
          CALL dbcsr_desymmetrize(matrix_ks(ispin, 1)%matrix, buf1_dbcsr)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, buf1_dbcsr, ortho_dbcsr, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, buf1_dbcsr, ortho_dbcsr, &
                              0.0_dp, buf2_dbcsr, filter_eps=eps_filter)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, ortho_dbcsr, buf2_dbcsr, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, ortho_dbcsr, buf2_dbcsr, &
                              0.0_dp, buf1_dbcsr, filter_eps=eps_filter)
          ! copy to fm format
          CALL copy_dbcsr_to_fm(buf1_dbcsr, fm_ks)
          CALL choose_eigv_solver(fm_ks, fm_mo, eigenvalues)
          ! back transform of mos c = Z(T)*c
          CALL copy_fm_to_dbcsr(fm_mo, buf1_dbcsr)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ortho_dbcsr, buf1_dbcsr, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ortho_dbcsr, buf1_dbcsr, &
                              0.0_dp, buf2_dbcsr, filter_eps=eps_filter)
          ! density matrix
          CALL dbcsr_set(matrix_p(ispin, 1)%matrix, 0.0_dp)
-         CALL dbcsr_multiply("N", "T", focc(ispin), buf2_dbcsr, buf2_dbcsr, &
+         CALL cp_dbcsr_multiply("N", "T", focc(ispin), buf2_dbcsr, buf2_dbcsr, &
                              1.0_dp, matrix_p(ispin, 1)%matrix, &
                              retain_sparsity=.TRUE., last_k=nmo(ispin))
 
@@ -2696,9 +2697,9 @@ CONTAINS
          CALL dbcsr_set(matrix_w(ispin, 1)%matrix, 0.0_dp)
          CALL cp_fm_column_scale(fm_mo, eigenvalues)
          CALL copy_fm_to_dbcsr(fm_mo, buf1_dbcsr)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, ortho_dbcsr, buf1_dbcsr, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ortho_dbcsr, buf1_dbcsr, &
                              0.0_dp, buf3_dbcsr, filter_eps=eps_filter)
-         CALL dbcsr_multiply("N", "T", focc(ispin), buf2_dbcsr, buf3_dbcsr, &
+         CALL cp_dbcsr_multiply("N", "T", focc(ispin), buf2_dbcsr, buf3_dbcsr, &
                              1.0_dp, matrix_w(ispin, 1)%matrix, &
                              retain_sparsity=.TRUE., last_k=nmo(ispin))
       END DO

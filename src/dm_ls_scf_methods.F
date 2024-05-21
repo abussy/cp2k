@@ -12,6 +12,7 @@
 !> \author Joost VandeVondele
 ! **************************************************************************************************
 MODULE dm_ls_scf_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE arnoldi_api,                     ONLY: arnoldi_extremal
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_get_default_unit_nr,&
@@ -148,10 +149,10 @@ CONTAINS
             CALL dbcsr_create(matrix_tmp2, template=ls_scf_env%matrix_s, &
                               matrix_type=dbcsr_type_no_symmetry)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_s, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_s, &
                                 0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp1, ls_scf_env%matrix_s_sqrt_inv, &
                                 0.0_dp, matrix_tmp2, filter_eps=ls_scf_env%eps_filter)
 
             frob_matrix_base = dbcsr_frobenius_norm(matrix_tmp2)
@@ -173,13 +174,13 @@ CONTAINS
          IF (.NOT. ls_scf_env%use_s_sqrt) THEN
             CALL invert_Hotelling(ls_scf_env%matrix_s_inv, ls_scf_env%matrix_s, ls_scf_env%eps_filter)
          ELSE
-            CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_s_sqrt_inv, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_sqrt_inv, ls_scf_env%matrix_s_sqrt_inv, &
                                 0.0_dp, ls_scf_env%matrix_s_inv, filter_eps=ls_scf_env%eps_filter)
          END IF
          IF (ls_scf_env%check_s_inv) THEN
             CALL dbcsr_create(matrix_tmp1, template=ls_scf_env%matrix_s, &
                               matrix_type=dbcsr_type_no_symmetry)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_inv, ls_scf_env%matrix_s, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, ls_scf_env%matrix_s_inv, ls_scf_env%matrix_s, &
                                 0.0_dp, matrix_tmp1, filter_eps=ls_scf_env%eps_filter)
             frob_matrix_base = dbcsr_frobenius_norm(matrix_tmp1)
             CALL dbcsr_add_on_diag(matrix_tmp1, -1.0_dp)
@@ -328,14 +329,14 @@ CONTAINS
 
       SELECT CASE (direction)
       CASE ("forward")
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_bs_sqrt_inv, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_bs_sqrt_inv, &
                              0.0_dp, matrix_tmp)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_bs_sqrt_inv, matrix_tmp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_bs_sqrt_inv, matrix_tmp, &
                              0.0_dp, matrix)
       CASE ("backward")
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_bs_sqrt, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_bs_sqrt, &
                              0.0_dp, matrix_tmp)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_bs_sqrt, matrix_tmp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_bs_sqrt, matrix_tmp, &
                              0.0_dp, matrix)
       CASE DEFAULT
          CPABORT("")
@@ -518,9 +519,9 @@ CONTAINS
 
          CALL dbcsr_create(matrix_ssqrtinv_ks_ssqrtinv, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
          CALL dbcsr_create(matrix_ssqrtinv_ks_ssqrtinv2, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
                              0.0_dp, matrix_ssqrtinv_ks_ssqrtinv2, filter_eps=threshold)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_ssqrtinv_ks_ssqrtinv2, matrix_s_sqrt_inv, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_ssqrtinv_ks_ssqrtinv2, matrix_s_sqrt_inv, &
                              0.0_dp, matrix_ssqrtinv_ks_ssqrtinv, filter_eps=threshold)
          CALL dbcsr_add_on_diag(matrix_ssqrtinv_ks_ssqrtinv, -mu)
 
@@ -540,7 +541,7 @@ CONTAINS
       ELSE ! .NOT. sign_symmetric
          ! get inv(S)*H-I*mu
          CALL dbcsr_create(matrix_sinv_ks, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_inv, matrix_ks, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_inv, matrix_ks, &
                              0.0_dp, matrix_sinv_ks, filter_eps=threshold)
          CALL dbcsr_add_on_diag(matrix_sinv_ks, -mu)
 
@@ -570,21 +571,21 @@ CONTAINS
 
       ! we can also check it is idempotent PS*PS=PS
       CALL dbcsr_create(matrix_tmp, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p_ud, matrix_p_ud, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p_ud, matrix_p_ud, &
                           0.0_dp, matrix_tmp, filter_eps=threshold)
       CALL dbcsr_add(matrix_tmp, matrix_p_ud, 1.0_dp, -1.0_dp)
       frob_matrix = dbcsr_frobenius_norm(matrix_tmp)
       IF (unit_nr > 0) WRITE (unit_nr, '(T2,A,F20.12)') "Deviation from idempotency: ", frob_matrix
 
       IF (sign_symmetric) THEN
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_p_ud, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_p_ud, &
                              0.0_dp, matrix_tmp, filter_eps=threshold)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, matrix_s_sqrt_inv, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, matrix_s_sqrt_inv, &
                              0.0_dp, matrix_p, filter_eps=threshold)
       ELSE
 
          ! get P=PS*inv(S)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p_ud, matrix_s_inv, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p_ud, matrix_s_inv, &
                              0.0_dp, matrix_p, filter_eps=threshold)
       END IF
       CALL dbcsr_release(matrix_p_ud)
@@ -647,9 +648,9 @@ CONTAINS
 
       CALL dbcsr_create(matrix_ssqrtinv_ks_ssqrtinv, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
       CALL dbcsr_create(matrix_ssqrtinv_ks_ssqrtinv2, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
                           0.0_dp, matrix_ssqrtinv_ks_ssqrtinv2, filter_eps=threshold)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_ssqrtinv_ks_ssqrtinv2, matrix_s_sqrt_inv, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_ssqrtinv_ks_ssqrtinv2, matrix_s_sqrt_inv, &
                           0.0_dp, matrix_ssqrtinv_ks_ssqrtinv, filter_eps=threshold)
       CALL dbcsr_add_on_diag(matrix_ssqrtinv_ks_ssqrtinv, -mu)
 
@@ -680,15 +681,15 @@ CONTAINS
 
       ! we can also check it is idempotent PS*PS=PS
       CALL dbcsr_create(matrix_tmp, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p_ud, matrix_p_ud, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p_ud, matrix_p_ud, &
                           0.0_dp, matrix_tmp, filter_eps=threshold)
       CALL dbcsr_add(matrix_tmp, matrix_p_ud, 1.0_dp, -1.0_dp)
       frob_matrix = dbcsr_frobenius_norm(matrix_tmp)
       IF (unit_nr > 0) WRITE (unit_nr, '(T2,A,F20.12)') "Deviation from idempotency: ", frob_matrix
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_p_ud, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_p_ud, &
                           0.0_dp, matrix_tmp, filter_eps=threshold)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, matrix_s_sqrt_inv, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_tmp, matrix_s_sqrt_inv, &
                           0.0_dp, matrix_p, filter_eps=threshold)
       CALL dbcsr_release(matrix_p_ud)
       CALL dbcsr_release(matrix_tmp)
@@ -774,9 +775,9 @@ CONTAINS
       ! at some points the non-symmetric version of x is required
       CALL dbcsr_create(matrix_x_nosym, template=matrix_ks, matrix_type=dbcsr_type_no_symmetry)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
                           0.0_dp, matrix_x_nosym, filter_eps=threshold)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_x_nosym, matrix_s_sqrt_inv, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_x_nosym, matrix_s_sqrt_inv, &
                           0.0_dp, matrix_x, filter_eps=threshold)
       CALL dbcsr_desymmetrize(matrix_x, matrix_x_nosym)
 
@@ -838,7 +839,7 @@ CONTAINS
          flop1 = 0; flop2 = 0
 
          ! get X*X
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_x, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_x, &
                              0.0_dp, matrix_xsq, &
                              filter_eps=current_threshold, flop=flop1)
 
@@ -915,7 +916,7 @@ CONTAINS
          ELSE
             ! Xn+1 = F(X) + gam*G(X)
             CALL dbcsr_add(tmp_gx, matrix_xidsq, 1.0_dp, gam)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_xsq, tmp_gx, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_xsq, tmp_gx, &
                                 0.0_dp, matrix_x, &
                                 flop=flop2, filter_eps=current_threshold)
             branch = 3
@@ -953,9 +954,9 @@ CONTAINS
       CALL dbcsr_release(matrix_xidsq)
 
       ! output to matrix_p, P = inv(S)^0.5 X inv(S)^0.5
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_s_sqrt_inv, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_s_sqrt_inv, &
                           0.0_dp, matrix_x_nosym, filter_eps=threshold)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_x_nosym, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_x_nosym, &
                           0.0_dp, matrix_p, filter_eps=threshold)
 
       ! calculate the chemical potential by doing a bisection of fk(x0)-0.5, where fk is evaluated using the stored values for gamma
@@ -1054,9 +1055,9 @@ CONTAINS
       CALL dbcsr_create(matrix_x, template=matrix_ks, matrix_type=dbcsr_type_no_symmetry)
       CALL dbcsr_create(matrix_xsq, template=matrix_ks, matrix_type=dbcsr_type_no_symmetry)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
                           0.0_dp, matrix_xsq, filter_eps=threshold)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_xsq, matrix_s_sqrt_inv, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_xsq, matrix_s_sqrt_inv, &
                           0.0_dp, matrix_x, filter_eps=threshold)
 
       IF (unit_nr > 0) THEN
@@ -1125,7 +1126,7 @@ CONTAINS
 
             CALL dbcsr_scale(matrix_x, alpha(i))
             CALL dbcsr_add_on_diag(matrix_x, 1.0_dp - alpha(i))
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_x, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_x, &
                                 0.0_dp, matrix_xsq, &
                                 filter_eps=threshold, flop=flop1)
 
@@ -1144,7 +1145,7 @@ CONTAINS
             alpha(i) = 2.0_dp/(1.0_dp + betaB)
 
             CALL dbcsr_scale(matrix_x, alpha(i))
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_x, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_x, &
                                 0.0_dp, matrix_xsq, &
                                 filter_eps=threshold, flop=flop1)
 
@@ -1189,9 +1190,9 @@ CONTAINS
       IF (unit_nr > 0) WRITE (unit_nr, '(T6,A,I3,1X,1F10.8,1X,1F10.8)') 'Final TC2 iteration  ', i, occ_matrix, ABS(nu(i))
 
       ! output to matrix_p, P = inv(S)^0.5 X inv(S)^0.5
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_s_sqrt_inv, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_x, matrix_s_sqrt_inv, &
                           0.0_dp, matrix_tmp, filter_eps=threshold)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_tmp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_tmp, &
                           0.0_dp, matrix_p, filter_eps=threshold)
 
       CALL dbcsr_release(matrix_xsq)
@@ -1304,7 +1305,7 @@ CONTAINS
       ! find largest ev of P*(K+shift*1), where shift is the neg. val. of the smallest ev of K
       CALL dbcsr_copy(tmp2, matrix_k)
       CALL dbcsr_add_on_diag(tmp2, shift1)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p, tmp2, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p, tmp2, &
                           0.0_dp, tmp1, filter_eps=threshold)
       CALL arnoldi_extremal(tmp1, max_eig, min_eig, converged=converged, &
                             threshold=eps_lanczos, max_iter=max_iter_lanczos)
@@ -1319,7 +1320,7 @@ CONTAINS
       CALL dbcsr_add_on_diag(tmp3, 1.0_dp) !tmp3 = 1-P
       CALL dbcsr_copy(tmp2, matrix_k)
       CALL dbcsr_add_on_diag(tmp2, -shift2)
-      CALL dbcsr_multiply("N", "N", -1.0_dp, tmp3, tmp2, &
+      CALL cp_dbcsr_multiply("N", "N", -1.0_dp, tmp3, tmp2, &
                           0.0_dp, tmp1, filter_eps=threshold)
       CALL arnoldi_extremal(tmp1, max_eig, min_eig, converged=converged, &
                             threshold=eps_lanczos, max_iter=max_iter_lanczos)

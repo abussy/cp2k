@@ -12,6 +12,7 @@
 !> \author Rustam Z Khaliullin
 ! **************************************************************************************************
 MODULE almo_scf_qs
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE almo_scf_types,                  ONLY: almo_mat_dim_aobasis,&
                                               almo_mat_dim_occ,&
                                               almo_mat_dim_virt,&
@@ -1571,22 +1572,22 @@ CONTAINS
 
          CALL dbcsr_copy(tmp_nn1, almo_scf_env%matrix_ks(ispin))
          ! 1. TMP_NO1=F.T
-         CALL dbcsr_multiply("N", "N", scaling, tmp_nn1, almo_scf_env%matrix_t(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", scaling, tmp_nn1, almo_scf_env%matrix_t(ispin), &
                              0.0_dp, tmp_no1, filter_eps=almo_scf_env%eps_filter)
          ! 2. TMP_OO1=T^(tr).TMP_NO1=T^(tr).(FT)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, almo_scf_env%matrix_t(ispin), tmp_no1, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, almo_scf_env%matrix_t(ispin), tmp_no1, &
                              0.0_dp, tmp_oo1, filter_eps=almo_scf_env%eps_filter)
          ! 3. TMP_OO2=TMP_OO1.siginv=(T^(tr)FT).siginv
-         CALL dbcsr_multiply("N", "N", 1.0_dp, tmp_oo1, almo_scf_env%matrix_sigma_inv(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp_oo1, almo_scf_env%matrix_sigma_inv(ispin), &
                              0.0_dp, tmp_oo2, filter_eps=almo_scf_env%eps_filter)
          ! 4. TMP_OO1=siginv.TMP_OO2=siginv.(T^(tr)FTsiginv)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_sigma_inv(ispin), tmp_oo2, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_sigma_inv(ispin), tmp_oo2, &
                              0.0_dp, tmp_oo1, filter_eps=almo_scf_env%eps_filter)
          ! 5. TMP_NO1=T.TMP_OO1.=T.(siginvT^(tr)FTsiginv)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_t(ispin), tmp_oo1, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_t(ispin), tmp_oo1, &
                              0.0_dp, tmp_no1, filter_eps=almo_scf_env%eps_filter)
          ! 6. TMP_NN1=TMP_NO1.T^(tr)=(TsiginvT^(tr)FTsiginv).T^(tr)=RFR
-         CALL dbcsr_multiply("N", "T", 1.0_dp, tmp_no1, almo_scf_env%matrix_t(ispin), &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, tmp_no1, almo_scf_env%matrix_t(ispin), &
                              0.0_dp, tmp_nn1, filter_eps=almo_scf_env%eps_filter)
          CALL matrix_almo_to_qs(tmp_nn1, matrix_w(ispin)%matrix, almo_scf_env%mat_distr_aos)
 

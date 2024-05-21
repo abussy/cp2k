@@ -11,6 +11,7 @@
 !> \author Joost VandeVondele
 ! **************************************************************************************************
 MODULE iterate_matrix
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE arnoldi_api,                     ONLY: arnoldi_data_type,&
                                               arnoldi_extremal
    USE bibliography,                    ONLY: Richters2018,&
@@ -138,12 +139,12 @@ CONTAINS
 
       ! normalize the main diagonal, off-diagonal elements are scaled to
       ! make the norm of the matrix less than 1
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           matrix, &
                           tmp1, &
                           0.0_dp, tmp3, &
                           filter_eps=threshold)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                           tmp1, &
                           tmp3, &
                           0.0_dp, tmp2, &
@@ -202,7 +203,7 @@ CONTAINS
             ! multiply X^i by X
             ! note that the first iteration evaluates X^2
             ! because the trace of X^1 is zero by construction
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp2, &
                                 0.0_dp, tmp3, &
                                 filter_eps=threshold, &
                                 flop=flop1)
@@ -367,7 +368,7 @@ CONTAINS
 
       END IF
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, matrix_inverse, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, matrix_inverse, &
                           0.0_dp, tmp2, filter_eps=filter_eps)
 
       IF (unit_nr > 0) WRITE (unit_nr, *)
@@ -383,7 +384,7 @@ CONTAINS
 
          ! coeff = +/- 1
          coeff = -1.0_dp*coeff
-         CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp2, 0.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp2, 0.0_dp, &
                              tmp3_sym, &
                              flop=flop2, filter_eps=filter_eps)
          !flop=flop2)
@@ -416,7 +417,7 @@ CONTAINS
       END DO
 
       !last convergence check
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_inverse, 0.0_dp, tmp1, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_inverse, 0.0_dp, tmp1, &
                           filter_eps=filter_eps)
       CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
       !frob_matrix =  dbcsr_frobenius_norm(tmp1)
@@ -558,7 +559,7 @@ CONTAINS
       ! scale the approximate inverse to be within the convergence radius
       t1 = m_walltime()
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_inverse, matrix, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_inverse, matrix, &
                           0.0_dp, tmp1, flop=flop1, filter_eps=my_filter_eps)
 
       IF (accelerator_type == 1) THEN
@@ -602,7 +603,7 @@ CONTAINS
          CALL dbcsr_add_on_diag(tmp1, +1.0_dp)
 
          ! tmp2 = S^-1 S S^-1
-         CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, matrix_inverse, 0.0_dp, tmp2, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, matrix_inverse, 0.0_dp, tmp2, &
                              flop=flop2, filter_eps=my_filter_eps)
          ! S^-1_{n+1} = 2 S^-1 - S^-1 S S^-1
          CALL dbcsr_add(matrix_inverse, tmp2, 2.0_dp, -1.0_dp)
@@ -636,7 +637,7 @@ CONTAINS
          END IF
 
          t1 = m_walltime()
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_inverse, matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_inverse, matrix, &
                              0.0_dp, tmp1, flop=flop1, filter_eps=my_filter_eps)
 
       END DO
@@ -734,7 +735,7 @@ CONTAINS
          floptot = 0_dp
          t1 = m_walltime()
          ! tmp1 = X * X
-         CALL dbcsr_multiply("N", "N", -1.0_dp, matrix_sign, matrix_sign, 0.0_dp, tmp1, &
+         CALL cp_dbcsr_multiply("N", "N", -1.0_dp, matrix_sign, matrix_sign, 0.0_dp, tmp1, &
                              filter_eps=threshold, flop=flops)
          floptot = floptot + flops
 
@@ -787,7 +788,7 @@ CONTAINS
             CALL dbcsr_add_on_diag(tmp1, 8.0_dp/3.0_dp)
 
             ! tmp2=y^2
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp2, 1.0_dp, tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp2, 1.0_dp, tmp1, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
             prefactor = 3.0_dp/8.0_dp
@@ -800,13 +801,13 @@ CONTAINS
             CALL dbcsr_add_on_diag(tmp1, 16.0_dp/5.0_dp)
 
             !
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp3, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp3, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
             CALL dbcsr_add(tmp1, tmp2, 1.0_dp, 6.0_dp/5.0_dp)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 1.0_dp, tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 1.0_dp, tmp1, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
@@ -819,19 +820,19 @@ CONTAINS
             CALL dbcsr_add_on_diag(tmp1, 128.0_dp/35.0_dp)
 
             !
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp3, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp3, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
             CALL dbcsr_add(tmp1, tmp2, 1.0_dp, 48.0_dp/35.0_dp)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 0.0_dp, tmp4, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 0.0_dp, tmp4, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
             CALL dbcsr_add(tmp1, tmp4, 1.0_dp, 8.0_dp/7.0_dp)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp4, tmp3, 1.0_dp, tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp4, tmp3, 1.0_dp, tmp1, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
@@ -854,14 +855,14 @@ CONTAINS
             ! tmp3=z
             CALL dbcsr_copy(tmp3, tmp1)
             CALL dbcsr_add_on_diag(tmp3, a0)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp1, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp1, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
             CALL dbcsr_add_on_diag(tmp2, a1)
 
             CALL dbcsr_add_on_diag(tmp1, a2)
             CALL dbcsr_add(tmp1, tmp2, 1.0_dp, 1.0_dp)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp2, 0.0_dp, tmp3, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp2, 0.0_dp, tmp3, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
             CALL dbcsr_add_on_diag(tmp3, a3)
@@ -877,25 +878,25 @@ CONTAINS
             CALL dbcsr_add_on_diag(tmp1, 256.0_dp/63.0_dp)
 
             !
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp3, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp3, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
             CALL dbcsr_add(tmp1, tmp2, 1.0_dp, 32.0_dp/21.0_dp)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 0.0_dp, tmp4, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 0.0_dp, tmp4, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
             CALL dbcsr_add(tmp1, tmp4, 1.0_dp, 80.0_dp/63.0_dp)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp4, tmp3, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp4, tmp3, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
             CALL dbcsr_add(tmp1, tmp2, 1.0_dp, 10.0_dp/9.0_dp)
 
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 1.0_dp, tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 1.0_dp, tmp1, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
 
@@ -918,7 +919,7 @@ CONTAINS
             ! tmp3=z
             CALL dbcsr_copy(tmp3, tmp1)
             CALL dbcsr_add_on_diag(tmp3, a0)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp1, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp3, tmp1, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
             CALL dbcsr_add_on_diag(tmp2, a1)
@@ -926,14 +927,14 @@ CONTAINS
             ! tmp4=w
             CALL dbcsr_copy(tmp4, tmp1)
             CALL dbcsr_add_on_diag(tmp4, a2)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp4, tmp2, 0.0_dp, tmp3, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp4, tmp2, 0.0_dp, tmp3, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
             CALL dbcsr_add_on_diag(tmp3, a3)
 
             CALL dbcsr_add(tmp2, tmp3, 1.0_dp, 1.0_dp)
             CALL dbcsr_add_on_diag(tmp2, a4)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 0.0_dp, tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 0.0_dp, tmp1, &
                                 filter_eps=threshold, flop=flops)
             floptot = floptot + flops
             CALL dbcsr_add_on_diag(tmp1, a5)
@@ -944,7 +945,7 @@ CONTAINS
          END IF
 
          ! tmp2 = X * prefactor *
-         CALL dbcsr_multiply("N", "N", prefactor, matrix_sign, tmp1, 0.0_dp, tmp2, &
+         CALL cp_dbcsr_multiply("N", "N", prefactor, matrix_sign, tmp1, 0.0_dp, tmp2, &
                              filter_eps=threshold, flop=flops)
          floptot = floptot + flops
 
@@ -968,7 +969,7 @@ CONTAINS
       END DO
 
       ! this check is not really needed
-      CALL dbcsr_multiply("N", "N", +1.0_dp, matrix_sign, matrix_sign, 0.0_dp, tmp1, &
+      CALL cp_dbcsr_multiply("N", "N", +1.0_dp, matrix_sign, matrix_sign, 0.0_dp, tmp1, &
                           filter_eps=threshold)
       frob_matrix_base = dbcsr_frobenius_norm(tmp1)
       CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
@@ -1043,7 +1044,7 @@ CONTAINS
       CALL dbcsr_create(tmp2, template=matrix_sign)
 
       CALL dbcsr_create(matrix2, template=matrix, matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix, 0.0_dp, matrix2, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix, 0.0_dp, matrix2, &
                           filter_eps=threshold, flop=flop0)
       !CALL dbcsr_filter(matrix2, threshold)
 
@@ -1062,11 +1063,11 @@ CONTAINS
 !      call matrix_sqrt_Newton_Schulz(matrix_sqrt, matrix_sqrt_inv, matrix2, threshold, order, &
 !                                        0.01_dp,100, symmetrize,converged)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_sqrt_inv, 0.0_dp, matrix_sign, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix, matrix_sqrt_inv, 0.0_dp, matrix_sign, &
                           filter_eps=threshold, flop=flop1)
 
       ! this check is not really needed
-      CALL dbcsr_multiply("N", "N", +1.0_dp, matrix_sign, matrix_sign, 0.0_dp, tmp1, &
+      CALL cp_dbcsr_multiply("N", "N", +1.0_dp, matrix_sign, matrix_sign, 0.0_dp, tmp1, &
                           filter_eps=threshold, flop=flop2)
       frob_matrix_base = dbcsr_frobenius_norm(tmp1)
       CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
@@ -1704,7 +1705,7 @@ CONTAINS
          t1 = m_walltime()
 
          ! tmp1 = Zk * Yk - I
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrix_sqrt, 0.0_dp, tmp1, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrix_sqrt, 0.0_dp, tmp1, &
                              filter_eps=threshold, flop=flop1)
          frob_matrix_base = dbcsr_frobenius_norm(tmp1)
          CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
@@ -1720,7 +1721,7 @@ CONTAINS
             CALL dbcsr_scale(tmp1, -0.5_dp)
          CASE (3)
             ! tmp2 = tmp1 ** 2
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp1, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp1, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flop4)
             ! tmp1 = 1/16 * (16*I-8*tmp1+6*tmp1**2-5*tmp1**3)
             CALL dbcsr_add(tmp1, tmp2, -4.0_dp, 3.0_dp)
@@ -1728,10 +1729,10 @@ CONTAINS
             CALL dbcsr_scale(tmp1, 0.125_dp)
          CASE (4) ! as expensive as case(5), so little need to use it
             ! tmp2 = tmp1 ** 2
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp1, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp1, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flop4)
             ! tmp3 = tmp2 * tmp1
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp1, 0.0_dp, tmp3, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp1, 0.0_dp, tmp3, &
                                 filter_eps=threshold, flop=flop5)
             CALL dbcsr_scale(tmp1, -8.0_dp)
             CALL dbcsr_add_on_diag(tmp1, 16.0_dp)
@@ -1754,7 +1755,7 @@ CONTAINS
             c = ob - b - a*(a + 1)
             d = od - b*c
             ! tmp2 = tmp1 ** 2 + a * tmp1
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp1, 0.0_dp, tmp2, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, tmp1, 0.0_dp, tmp2, &
                                 filter_eps=threshold, flop=flop4)
             CALL dbcsr_add(tmp2, tmp1, 1.0_dp, a)
             ! tmp3 = tmp2 + tmp1 + b
@@ -1764,7 +1765,7 @@ CONTAINS
             ! tmp2 = tmp2 + c
             CALL dbcsr_add_on_diag(tmp2, c)
             ! tmp1 = tmp2 * tmp3
-            CALL dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 0.0_dp, tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp2, tmp3, 0.0_dp, tmp1, &
                                 filter_eps=threshold, flop=flop5)
             ! tmp1 = tmp1 + d
             CALL dbcsr_add_on_diag(tmp1, d)
@@ -1775,13 +1776,13 @@ CONTAINS
          END SELECT
 
          ! tmp2 = Yk * tmp1 = Y(k+1)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt, tmp1, 0.0_dp, tmp2, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt, tmp1, 0.0_dp, tmp2, &
                              filter_eps=threshold, flop=flop2)
          ! CALL dbcsr_filter(tmp2,threshold)
          CALL dbcsr_copy(matrix_sqrt, tmp2)
 
          ! tmp2 = tmp1 * Zk = Z(k+1)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, tmp1, matrix_sqrt_inv, 0.0_dp, tmp2, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp1, matrix_sqrt_inv, 0.0_dp, tmp2, &
                              filter_eps=threshold, flop=flop3)
          ! CALL dbcsr_filter(tmp2,threshold)
          CALL dbcsr_copy(matrix_sqrt_inv, tmp2)
@@ -1823,7 +1824,7 @@ CONTAINS
       END IF
 
       ! this check is not really needed
-      CALL dbcsr_multiply("N", "N", +1.0_dp, matrix_sqrt_inv, matrix_sqrt, 0.0_dp, tmp1, &
+      CALL cp_dbcsr_multiply("N", "N", +1.0_dp, matrix_sqrt_inv, matrix_sqrt, 0.0_dp, tmp1, &
                           filter_eps=threshold)
       frob_matrix_base = dbcsr_frobenius_norm(tmp1)
       CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
@@ -1947,9 +1948,9 @@ CONTAINS
          t1 = m_walltime()
          IF (1 .EQ. 1) THEN
             !build R=1-A B_K^2
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrix_sqrt_inv, 0.0_dp, tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrix_sqrt_inv, 0.0_dp, tmp1, &
                                 filter_eps=threshold, flop=flop1)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrixS, tmp1, 0.0_dp, Rmat, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrixS, tmp1, 0.0_dp, Rmat, &
                                 filter_eps=threshold, flop=flop2)
             CALL dbcsr_scale(Rmat, -1.0_dp)
             CALL dbcsr_add_on_diag(Rmat, 1.0_dp)
@@ -1966,7 +1967,7 @@ CONTAINS
                ELSE
                   f = 0
                   CALL dbcsr_copy(tmp3, tmp2)
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, tmp3, Rmat, 0.0_dp, tmp2, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp3, Rmat, 0.0_dp, tmp2, &
                                       filter_eps=threshold, flop=f)
                   flop3 = flop3 + f
                END IF
@@ -1974,9 +1975,9 @@ CONTAINS
             END DO
          ELSE
             CALL dbcsr_create(BK2A, template=matrix, matrix_type=dbcsr_type_no_symmetry)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrixS, 0.0_dp, tmp3, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrixS, 0.0_dp, tmp3, &
                                 filter_eps=threshold, flop=flop1)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, tmp3, 0.0_dp, BK2A, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, tmp3, 0.0_dp, BK2A, &
                                 filter_eps=threshold, flop=flop2)
             CALL dbcsr_copy(Rmat, BK2A)
             CALL dbcsr_add_on_diag(Rmat, -1.0_dp)
@@ -1995,7 +1996,7 @@ CONTAINS
                IF (j .LT. order) THEN
                   f = 0
                   CALL dbcsr_copy(tmp3, tmp2)
-                  CALL dbcsr_multiply("N", "N", 1.0_dp, tmp3, BK2A, 0.0_dp, tmp2, &
+                  CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmp3, BK2A, 0.0_dp, tmp2, &
                                       filter_eps=threshold, flop=f)
                   flop3 = flop3 + f
                END IF
@@ -2004,7 +2005,7 @@ CONTAINS
          END IF
 
          CALL dbcsr_copy(tmp3, matrix_sqrt_inv)
-         CALL dbcsr_multiply("N", "N", 0.5_dp, tmp3, tmp1, 0.0_dp, matrix_sqrt_inv, &
+         CALL cp_dbcsr_multiply("N", "N", 0.5_dp, tmp3, tmp1, 0.0_dp, matrix_sqrt_inv, &
                              filter_eps=threshold, flop=flop4)
 
          occ_matrix = dbcsr_get_occupation(matrix_sqrt_inv)
@@ -2034,7 +2035,7 @@ CONTAINS
 
       ! scale to proper end results
       CALL dbcsr_scale(matrix_sqrt_inv, SQRT(scaling))
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrix, 0.0_dp, matrix_sqrt, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_sqrt_inv, matrix, 0.0_dp, matrix_sqrt, &
                           filter_eps=threshold, flop=flop5)
 
       ! symmetrize the matrices as this is not guaranteed by the algorithm
@@ -2050,7 +2051,7 @@ CONTAINS
 
       ! this check is not really needed
       IF (test) THEN
-         CALL dbcsr_multiply("N", "N", +1.0_dp, matrix_sqrt_inv, matrix_sqrt, 0.0_dp, tmp1, &
+         CALL cp_dbcsr_multiply("N", "N", +1.0_dp, matrix_sqrt_inv, matrix_sqrt, 0.0_dp, tmp1, &
                              filter_eps=threshold)
          frob_matrix_base = dbcsr_frobenius_norm(tmp1)
          CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
@@ -2064,9 +2065,9 @@ CONTAINS
          END IF
 
          ! this check is not really needed
-         CALL dbcsr_multiply("N", "N", +1.0_dp, matrix_sqrt_inv, matrix_sqrt_inv, 0.0_dp, tmp2, &
+         CALL cp_dbcsr_multiply("N", "N", +1.0_dp, matrix_sqrt_inv, matrix_sqrt_inv, 0.0_dp, tmp2, &
                              filter_eps=threshold)
-         CALL dbcsr_multiply("N", "N", +1.0_dp, tmp2, matrix, 0.0_dp, tmp1, &
+         CALL cp_dbcsr_multiply("N", "N", +1.0_dp, tmp2, matrix, 0.0_dp, tmp1, &
                              filter_eps=threshold)
          frob_matrix_base = dbcsr_frobenius_norm(tmp1)
          CALL dbcsr_add_on_diag(tmp1, -1.0_dp)
@@ -2158,7 +2159,7 @@ CONTAINS
       DO
          i = i + 1
          ! compute D_product=D*C
-         CALL dbcsr_multiply("N", "N", one, D, C, &
+         CALL cp_dbcsr_multiply("N", "N", one, D, C, &
                              zero, D_product, filter_eps=threshold)
 
          ! copy D_product in D
@@ -2177,7 +2178,7 @@ CONTAINS
       CALL dbcsr_create(B_square, template=matrix, matrix_type=dbcsr_type_no_symmetry)
       DO i = 1, k
          !compute B_square=B*B
-         CALL dbcsr_multiply("N", "N", one, B, B, &
+         CALL cp_dbcsr_multiply("N", "N", one, B, B, &
                              zero, B_square, filter_eps=threshold)
          ! copy Bsquare in B to iterate
          CALL dbcsr_copy(B, B_square)
@@ -2236,7 +2237,7 @@ CONTAINS
 
       DO ispin = 1, SIZE(matrix_p)
          DO i = 1, max_steps
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p(ispin), matrix_p(ispin), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p(ispin), matrix_p(ispin), &
                                 0.0_dp, matrix_pp, filter_eps=threshold)
 
             ! test convergence
@@ -2248,7 +2249,7 @@ CONTAINS
 
             ! construct new P
             CALL dbcsr_copy(matrix_tmp, matrix_pp)
-            CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_pp, matrix_p(ispin), &
+            CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_pp, matrix_p(ispin), &
                                 3.0_dp, matrix_tmp, filter_eps=threshold)
             CALL dbcsr_copy(matrix_p(ispin), matrix_tmp) ! tmp = 3PP - 2PPP
 
@@ -2301,9 +2302,9 @@ CONTAINS
 
       DO ispin = 1, SIZE(matrix_p)
          DO i = 1, max_steps
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p(ispin), matrix_s, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_p(ispin), matrix_s, &
                                 0.0_dp, matrix_ps, filter_eps=threshold)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_ps, matrix_p(ispin), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_ps, matrix_p(ispin), &
                                 0.0_dp, matrix_psp, filter_eps=threshold)
             IF (i == 1) CALL dbcsr_trace(matrix_ps, trace)
 
@@ -2316,7 +2317,7 @@ CONTAINS
 
             ! construct new P
             CALL dbcsr_copy(matrix_p(ispin), matrix_psp)
-            CALL dbcsr_multiply("N", "N", -2.0_dp, matrix_ps, matrix_psp, &
+            CALL cp_dbcsr_multiply("N", "N", -2.0_dp, matrix_ps, matrix_psp, &
                                 3.0_dp, matrix_p(ispin), filter_eps=threshold)
 
             ! frob_norm < SQRT(trace*threshold)

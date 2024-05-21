@@ -12,6 +12,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE iao_analysis
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE ai_contraction,                  ONLY: block_add,&
                                               contraction
    USE ai_overlap,                      ONLY: overlap_ab
@@ -1462,7 +1463,7 @@ CONTAINS
       oce_comp = 0.0_dp
       DO ispin = 1, nspin
          CALL copy_fm_to_dbcsr(iao_coef(ispin), iao_vec)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, sxo(1)%matrix, iao_vec, 0.0_dp, sx_vec, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, sxo(1)%matrix, iao_vec, 0.0_dp, sx_vec, &
                              retain_sparsity=.TRUE.)
          DO iatom = 1, natom
             CALL get_atomic_kind(particle_set(iatom)%atomic_kind, kind_number=ikind)

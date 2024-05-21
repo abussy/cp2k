@@ -11,6 +11,7 @@
 !>      10.2013 created [Mauro Del Ben]
 ! **************************************************************************************************
 MODULE mp2_ri_grad
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind_set
    USE cell_types,                      ONLY: cell_type
@@ -296,7 +297,7 @@ CONTAINS
          DO LLL = my_group_L_start, my_group_L_end
             L_counter = L_counter + 1
             DO ispin = 1, nspins
-               CALL dbcsr_multiply("N", "T", 1.0_dp, mo_coeff_v(ispin)%matrix, G_P_ia(ispin, L_counter)%matrix, &
+               CALL cp_dbcsr_multiply("N", "T", 1.0_dp, mo_coeff_v(ispin)%matrix, G_P_ia(ispin, L_counter)%matrix, &
                                    0.0_dp, matrix_P_inu(ispin), filter_eps=eps_filter)
             END DO
 
@@ -557,11 +558,11 @@ CONTAINS
 
       DO ispin = 1, SIZE(G_P_ia)
          ! first back-transformation a->nu
-         CALL dbcsr_multiply("N", "T", 1.0_dp, mo_coeff_v(ispin)%matrix, G_P_ia(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, mo_coeff_v(ispin)%matrix, G_P_ia(ispin)%matrix, &
                              0.0_dp, G_P_inu(ispin), filter_eps=eps_filter)
 
          ! second back-transformation i->mu
-         CALL dbcsr_multiply("N", "T", factor, G_P_inu(ispin), mo_coeff_o(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "T", factor, G_P_inu(ispin), mo_coeff_o(ispin)%matrix, &
                              1.0_dp, G_P_munu, filter_eps=eps_filter)
       END DO
 
@@ -599,17 +600,17 @@ CONTAINS
       DO ispin = 1, SIZE(G_P_ia)
          ! first contract mat_munu with the half back transformed Gamma_i_nu
          ! in order to update Lag_mu_i_1
-         CALL dbcsr_multiply("N", "N", 1.0_dp, mat_munu, matrix_P_inu(ispin), &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mat_munu, matrix_P_inu(ispin), &
                              1.0_dp, Lag_mu_i_1(ispin), filter_eps=eps_filter)
 
          ! transform first index of mat_munu and store the result into matrix_P_inu
          CALL dbcsr_set(matrix_P_inu(ispin), 0.0_dp)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, mat_munu, mo_coeff_o(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mat_munu, mo_coeff_o(ispin)%matrix, &
                              0.0_dp, matrix_P_inu(ispin), filter_eps=eps_filter)
 
          ! contract the transformend matrix_P_inu with the untransformend Gamma_i_a
          ! in order to update Lag_nu_a_2
-         CALL dbcsr_multiply("N", "N", -1.0_dp, matrix_P_inu(ispin), G_P_ia(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", -1.0_dp, matrix_P_inu(ispin), G_P_ia(ispin)%matrix, &
                              1.0_dp, Lag_nu_a_2(ispin), filter_eps=eps_filter)
 
          ! release the actual gamma_P_ia

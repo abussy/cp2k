@@ -13,6 +13,7 @@
 !> \author Rustam Z Khaliullin
 ! **************************************************************************************************
 MODULE almo_scf
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE almo_scf_methods,                ONLY: almo_scf_p_blk_to_t_blk,&
                                               almo_scf_t_rescaling,&
                                               almo_scf_t_to_proj,&
@@ -668,7 +669,7 @@ CONTAINS
                                   keep_sparsity=.TRUE.)
                   CALL dbcsr_scale(almo_scf_env%matrix_t_blk(ispin), alpha)
                ELSE
-                  CALL dbcsr_multiply("N", "N", alpha, &
+                  CALL cp_dbcsr_multiply("N", "N", alpha, &
                                       almo_scf_env%almo_history%matrix_p_up_down(ispin, istore), &
                                       almo_scf_env%almo_history%matrix_t(ispin), &
                                       1.0_dp, almo_scf_env%matrix_t_blk(ispin), &
@@ -817,15 +818,15 @@ CONTAINS
                               matrix_type=dbcsr_type_no_symmetry)
 
             ! compute contra-covariant density matrix
-            CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s(1), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s(1), &
                                 almo_scf_env%matrix_t_blk(ispin), &
                                 0.0_dp, matrix_no_tmp1, &
                                 filter_eps=almo_scf_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_no_tmp1, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_no_tmp1, &
                                 almo_scf_env%matrix_sigma_inv_0deloc(ispin), &
                                 0.0_dp, matrix_no_tmp2, &
                                 filter_eps=almo_scf_env%eps_filter)
-            CALL dbcsr_multiply("N", "T", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                                 almo_scf_env%matrix_t_blk(ispin), &
                                 matrix_no_tmp2, &
                                 0.0_dp, almo_scf_env%almo_history%matrix_p_up_down(ispin, istore), &
@@ -875,15 +876,15 @@ CONTAINS
                               matrix_type=dbcsr_type_no_symmetry)
 
             ! compute contra-covariant density matrix
-            CALL dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s(1), &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, almo_scf_env%matrix_s(1), &
                                 almo_scf_env%matrix_t(ispin), &
                                 0.0_dp, matrix_no_tmp3, &
                                 filter_eps=almo_scf_env%eps_filter)
-            CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_no_tmp3, &
+            CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_no_tmp3, &
                                 almo_scf_env%matrix_sigma_inv(ispin), &
                                 0.0_dp, matrix_no_tmp4, &
                                 filter_eps=almo_scf_env%eps_filter)
-            CALL dbcsr_multiply("N", "T", 1.0_dp, &
+            CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                                 almo_scf_env%matrix_t(ispin), &
                                 matrix_no_tmp4, &
                                 0.0_dp, almo_scf_env%xalmo_history%matrix_p_up_down(ispin, istore), &
@@ -1815,25 +1816,25 @@ CONTAINS
                                 keep_sparsity=.FALSE.)
 
          ! Project the orbital subspace out
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              almo_scf_env%matrix_s(1), &
                              almo_scf_env%matrix_v(ispin), &
                              0.0_dp, tempNV1, &
                              filter_eps=almo_scf_env%eps_filter)
 
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              tempNV1, &
                              almo_scf_env%matrix_t(ispin), &
                              0.0_dp, tempVOcc1, &
                              filter_eps=almo_scf_env%eps_filter)
 
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              tempVOcc1, &
                              almo_scf_env%matrix_sigma_inv(ispin), &
                              0.0_dp, tempVOcc2, &
                              filter_eps=almo_scf_env%eps_filter)
 
-         CALL dbcsr_multiply("N", "T", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, &
                              almo_scf_env%matrix_t(ispin), &
                              tempVOcc2, &
                              0.0_dp, tempNV1, &
@@ -1842,13 +1843,13 @@ CONTAINS
          CALL dbcsr_add(almo_scf_env%matrix_v(ispin), tempNV1, 1.0_dp, -1.0_dp)
 
          ! compute VxV overlap
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              almo_scf_env%matrix_s(1), &
                              almo_scf_env%matrix_v(ispin), &
                              0.0_dp, tempNV1, &
                              filter_eps=almo_scf_env%eps_filter)
 
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              almo_scf_env%matrix_v(ispin), &
                              tempNV1, &
                              0.0_dp, tempVV1, &
@@ -1866,13 +1867,13 @@ CONTAINS
                                 max_iter_lanczos=almo_scf_env%max_iter_lanczos)
 
          ! compute VxV block of the KS matrix
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              almo_scf_env%matrix_ks(ispin), &
                              almo_scf_env%matrix_v(ispin), &
                              0.0_dp, tempNV1, &
                              filter_eps=almo_scf_env%eps_filter)
 
-         CALL dbcsr_multiply("T", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, &
                              almo_scf_env%matrix_v(ispin), &
                              tempNV1, &
                              0.0_dp, tempVV1, &
@@ -1886,7 +1887,7 @@ CONTAINS
                              blacs_env=almo_scf_env%blacs_env)
          DEALLOCATE (eigenvalues)
 
-         CALL dbcsr_multiply("N", "N", 1.0_dp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, &
                              almo_scf_env%matrix_v(ispin), &
                              tempVV2, &
                              0.0_dp, tempNV1, &

@@ -12,6 +12,7 @@
 !> \author Jan Wilhelm, Frederick Stein
 ! **************************************************************************************************
 MODULE rpa_gw_sigma_x
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_methods,                    ONLY: admm_mo_merge_ks_matrix
    USE admm_types,                      ONLY: admm_type,&
                                               get_admm_env
@@ -569,11 +570,11 @@ CONTAINS
 
             END IF
 
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_sigma_x_minus_vxc(ispin, 1)%matrix, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_sigma_x_minus_vxc(ispin, 1)%matrix, &
                                 mo_coeff_b, 0.0_dp, matrix_tmp, first_column=homo + 1 - gw_corr_lev_occ, &
                                 last_column=homo + gw_corr_lev_virt)
 
-            CALL dbcsr_multiply('T', 'N', 1.0_dp, mo_coeff_b, &
+            CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, mo_coeff_b, &
                                 matrix_tmp, 0.0_dp, matrix_tmp_2, first_row=homo + 1 - gw_corr_lev_occ, &
                                 last_row=homo + gw_corr_lev_virt)
 

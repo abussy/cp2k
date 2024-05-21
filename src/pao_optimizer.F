@@ -10,6 +10,7 @@
 !> \author Ole Schuett
 ! **************************************************************************************************
 MODULE pao_optimizer
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE arnoldi_api,                     ONLY: arnoldi_extremal
    USE dbcsr_api,                       ONLY: &
         dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_dot, dbcsr_frobenius_norm, &
@@ -110,10 +111,10 @@ CONTAINS
          ! We can't convert matrix_D for and back every time, the numeric noise would disturb the CG,
          ! hence we keep matrix_D_preconed around.
          CALL dbcsr_copy(matrix_G_preconed, pao%matrix_G)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_precon, pao%matrix_G, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_precon, pao%matrix_G, &
                              0.0_dp, matrix_G_preconed, retain_sparsity=.TRUE.)
          CALL pao_opt_new_dir_low(pao, icycle, matrix_G_preconed, pao%matrix_G_prev, pao%matrix_D_preconed)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_precon, pao%matrix_D_preconed, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_precon, pao%matrix_D_preconed, &
                              0.0_dp, pao%matrix_D, retain_sparsity=.TRUE.)
 
          ! store preconditioned gradient for next iteration
@@ -263,7 +264,7 @@ CONTAINS
 
          ! Hy = MATMUL(H, y)
          CALL dbcsr_create(matrix_Hy, template=matrix_G, matrix_type="N")
-         CALL dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_BFGS, matrix_y, 0.0_dp, matrix_Hy)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_BFGS, matrix_y, 0.0_dp, matrix_Hy)
 
          ! yHy = MATMUL(TRANPOSE(y), Hy)
          CALL dbcsr_dot(matrix_y, matrix_Hy, trace_yHy)
@@ -288,23 +289,23 @@ CONTAINS
 
          ! yr = MATMUL(y, TRANSPOSE(r))
          CALL dbcsr_create(matrix_yr, template=pao%matrix_BFGS, matrix_type="N")
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_y, matrix_r, 0.0_dp, matrix_yr)
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_y, matrix_r, 0.0_dp, matrix_yr)
 
          ! Hyr = MATMUL(H, yr)
          CALL dbcsr_create(matrix_Hyr, template=pao%matrix_BFGS, matrix_type="N")
-         CALL dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_BFGS, matrix_yr, 0.0_dp, matrix_Hyr)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, pao%matrix_BFGS, matrix_yr, 0.0_dp, matrix_Hyr)
 
          ! ryH = MATMUL(TRANSPOSE(yr), H)
          CALL dbcsr_create(matrix_ryH, template=pao%matrix_BFGS, matrix_type="N")
-         CALL dbcsr_multiply("T", "N", 1.0_dp, matrix_yr, pao%matrix_BFGS, 0.0_dp, matrix_ryH)
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, matrix_yr, pao%matrix_BFGS, 0.0_dp, matrix_ryH)
 
          ! ryHry = MATMUL(ryH,yr)
          CALL dbcsr_create(matrix_ryHyr, template=pao%matrix_BFGS, matrix_type="N")
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_ryH, matrix_yr, 0.0_dp, matrix_ryHyr)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_ryH, matrix_yr, 0.0_dp, matrix_ryHyr)
 
          ! rr = MATMUL(r,TRANSPOSE(r))
          CALL dbcsr_create(matrix_rr, template=pao%matrix_BFGS, matrix_type="N")
-         CALL dbcsr_multiply("N", "T", 1.0_dp, matrix_r, matrix_r, 0.0_dp, matrix_rr)
+         CALL cp_dbcsr_multiply("N", "T", 1.0_dp, matrix_r, matrix_r, 0.0_dp, matrix_rr)
 
          ! H = H - Hyr/ry - ryH/ry + ryHyr/(ry**2) + rr/ry
          CALL dbcsr_add(pao%matrix_BFGS, matrix_HYR, 1.0_dp, -1.0_dp/trace_ry)
@@ -337,7 +338,7 @@ CONTAINS
 
       ! calculate new direction
       ! d = MATMUL(H, -g)
-      CALL dbcsr_multiply("N", "N", -1.0_dp, pao%matrix_BFGS, matrix_G, &
+      CALL cp_dbcsr_multiply("N", "N", -1.0_dp, pao%matrix_BFGS, matrix_G, &
                           0.0_dp, matrix_D, retain_sparsity=.TRUE.)
 
       CALL timestop(handle)

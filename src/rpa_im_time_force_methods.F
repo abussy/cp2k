@@ -10,6 +10,7 @@
 !> \author Augustin Bussy
 ! **************************************************************************************************
 MODULE rpa_im_time_force_methods
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_methods,                    ONLY: admm_projection_derivative
    USE admm_types,                      ONLY: admm_type,&
                                               get_admm_env
@@ -437,7 +438,7 @@ CONTAINS
       CALL dbt_copy(t_2c_tmp, force_data%t_2c_pot_msqrt, move_data=.TRUE.)
       CALL dbt_filter(force_data%t_2c_pot_msqrt, mp2_env%ri_rpa_im_time%eps_filter)
 
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, dbcsr_work2, dbcsr_work, 0.0_dp, dbcsr_work3)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, dbcsr_work2, dbcsr_work, 0.0_dp, dbcsr_work3)
       CALL dbt_copy_matrix_to_tensor(dbcsr_work3, t_2c_tmp)
       CALL dbt_create(t_2c_template, force_data%t_2c_pot_psqrt)
       CALL dbt_copy(t_2c_tmp, force_data%t_2c_pot_psqrt, move_data=.TRUE.)
@@ -969,25 +970,25 @@ CONTAINS
          CALL dbt_copy_tensor_to_matrix(t_2c_tmp, R_virt)
 
          !Iteratively calculate the Y1 and Y2 matrices
-         CALL dbcsr_multiply('N', 'N', tau, force_data%P_occ(Pspin)%matrix, &
+         CALL cp_dbcsr_multiply('N', 'N', tau, force_data%P_occ(Pspin)%matrix, &
                              matrix_ks(Pspin)%matrix, 0.0_dp, dbcsr_work1)
          CALL build_Y_matrix(Y_1, dbcsr_work1, force_data%P_occ(Pspin)%matrix, R_virt, eps_filter)
          CALL matrix_exponential(exp_occ, dbcsr_work1, 1.0_dp, 1.0_dp, eps_filter)
 
-         CALL dbcsr_multiply('N', 'N', -tau, force_data%P_virt(Pspin)%matrix, &
+         CALL cp_dbcsr_multiply('N', 'N', -tau, force_data%P_virt(Pspin)%matrix, &
                              matrix_ks(Pspin)%matrix, 0.0_dp, dbcsr_work1)
          CALL build_Y_matrix(Y_2, dbcsr_work1, force_data%P_virt(Pspin)%matrix, R_occ, eps_filter)
          CALL matrix_exponential(exp_virt, dbcsr_work1, 1.0_dp, 1.0_dp, eps_filter)
 
          !The force contribution coming from [-S^-1*(e^-tau*P_virt*F)^T*R_occ*S^-1
          !                                    +tau*S^-1*Y_2^T*F*S^-1] * der_S
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, R_occ, force_data%inv_ovlp, 0.0_dp, dbcsr_work1)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, exp_virt, dbcsr_work1, 0.0_dp, dbcsr_work3)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, force_data%inv_ovlp, dbcsr_work3, 0.0_dp, dbcsr_work2)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, R_occ, force_data%inv_ovlp, 0.0_dp, dbcsr_work1)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, exp_virt, dbcsr_work1, 0.0_dp, dbcsr_work3)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, force_data%inv_ovlp, dbcsr_work3, 0.0_dp, dbcsr_work2)
 
-         CALL dbcsr_multiply('N', 'T', tau, force_data%inv_ovlp, Y_2, 0.0_dp, dbcsr_work3)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, dbcsr_work3, matrix_ks(Pspin)%matrix, 0.0_dp, dbcsr_work1)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, dbcsr_work1, force_data%inv_ovlp, 0.0_dp, dbcsr_work3)
+         CALL cp_dbcsr_multiply('N', 'T', tau, force_data%inv_ovlp, Y_2, 0.0_dp, dbcsr_work3)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, dbcsr_work3, matrix_ks(Pspin)%matrix, 0.0_dp, dbcsr_work1)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, dbcsr_work1, force_data%inv_ovlp, 0.0_dp, dbcsr_work3)
 
          CALL dbcsr_add(dbcsr_work2, dbcsr_work3, 1.0_dp, -1.0_dp)
 
@@ -1001,20 +1002,20 @@ CONTAINS
          IF (use_virial) CALL dbcsr_add(virial_ovlp, dbcsr_work2, 1.0_dp, pref)
 
          !The final contribution from Tr[(tau*Y_1*P_occ - tau*Y_2*P_virt) * der_F]
-         CALL dbcsr_multiply('N', 'N', tau*fac, Y_1, force_data%P_occ(Pspin)%matrix, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', tau*fac, Y_1, force_data%P_occ(Pspin)%matrix, 1.0_dp, &
                              force_data%sum_YP_tau(Pspin)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply('N', 'N', -tau*fac, Y_2, force_data%P_virt(Pspin)%matrix, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', -tau*fac, Y_2, force_data%P_virt(Pspin)%matrix, 1.0_dp, &
                              force_data%sum_YP_tau(Pspin)%matrix, retain_sparsity=.TRUE.)
 
          !Build-up the RHS of the response equation.
          pref = -omega*mp2_env%scale_S
-         CALL dbcsr_multiply('N', 'N', pref, R_virt, exp_occ, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', pref, R_virt, exp_occ, 1.0_dp, &
                              force_data%sum_O_tau(Pspin)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply('N', 'N', -pref, R_occ, exp_virt, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', -pref, R_occ, exp_virt, 1.0_dp, &
                              force_data%sum_O_tau(Pspin)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply('N', 'N', pref*tau, matrix_ks(Pspin)%matrix, Y_1, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', pref*tau, matrix_ks(Pspin)%matrix, Y_1, 1.0_dp, &
                              force_data%sum_O_tau(Pspin)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply('N', 'N', pref*tau, matrix_ks(Pspin)%matrix, Y_2, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', pref*tau, matrix_ks(Pspin)%matrix, Y_2, 1.0_dp, &
                              force_data%sum_O_tau(Pspin)%matrix, retain_sparsity=.TRUE.)
 
          CALL timestop(handle2)
@@ -1582,12 +1583,12 @@ CONTAINS
          !Iteratively calculate the Y1 and Y2 matrices
          CALL dbcsr_copy(dbcsr_work_symm, matrix_ks(ispin)%matrix)
          CALL dbcsr_add(dbcsr_work_symm, matrix_s(1)%matrix, 1.0_dp, -e_fermi)
-         CALL dbcsr_multiply('N', 'N', tau, force_data%P_occ(ispin)%matrix, &
+         CALL cp_dbcsr_multiply('N', 'N', tau, force_data%P_occ(ispin)%matrix, &
                              dbcsr_work_symm, 0.0_dp, dbcsr_work1)
          CALL build_Y_matrix(Y_1, dbcsr_work1, force_data%P_occ(ispin)%matrix, R_virt, eps_filter)
          CALL matrix_exponential(exp_occ, dbcsr_work1, 1.0_dp, 1.0_dp, eps_filter)
 
-         CALL dbcsr_multiply('N', 'N', -tau, force_data%P_virt(ispin)%matrix, &
+         CALL cp_dbcsr_multiply('N', 'N', -tau, force_data%P_virt(ispin)%matrix, &
                              dbcsr_work_symm, 0.0_dp, dbcsr_work1)
          CALL build_Y_matrix(Y_2, dbcsr_work1, force_data%P_virt(ispin)%matrix, R_occ, eps_filter)
          CALL matrix_exponential(exp_virt, dbcsr_work1, 1.0_dp, 1.0_dp, eps_filter)
@@ -1595,16 +1596,16 @@ CONTAINS
          !The force contribution coming from [-S^-1*(e^-tau*P_virt*F)^T*R_occ*S^-1
          !                                    +tau*S^-1*Y_2^T*F*S^-1] * der_S
          !as well as -tau*e_fermi*Y_1*P^occ + tau*e_fermi*Y_2*P^virt
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, R_occ, force_data%inv_ovlp, 0.0_dp, dbcsr_work1)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, exp_virt, dbcsr_work1, 0.0_dp, dbcsr_work3)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, force_data%inv_ovlp, dbcsr_work3, 0.0_dp, dbcsr_work2)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, R_occ, force_data%inv_ovlp, 0.0_dp, dbcsr_work1)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, exp_virt, dbcsr_work1, 0.0_dp, dbcsr_work3)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, force_data%inv_ovlp, dbcsr_work3, 0.0_dp, dbcsr_work2)
 
-         CALL dbcsr_multiply('N', 'T', tau, force_data%inv_ovlp, Y_2, 0.0_dp, dbcsr_work3)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, dbcsr_work3, dbcsr_work_symm, 0.0_dp, dbcsr_work1)
-         CALL dbcsr_multiply('N', 'N', -1.0_dp, dbcsr_work1, force_data%inv_ovlp, 1.0_dp, dbcsr_work2)
+         CALL cp_dbcsr_multiply('N', 'T', tau, force_data%inv_ovlp, Y_2, 0.0_dp, dbcsr_work3)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, dbcsr_work3, dbcsr_work_symm, 0.0_dp, dbcsr_work1)
+         CALL cp_dbcsr_multiply('N', 'N', -1.0_dp, dbcsr_work1, force_data%inv_ovlp, 1.0_dp, dbcsr_work2)
 
-         CALL dbcsr_multiply('N', 'T', tau*e_fermi, force_data%P_occ(ispin)%matrix, Y_1, 1.0_dp, dbcsr_work2)
-         CALL dbcsr_multiply('N', 'T', -tau*e_fermi, force_data%P_virt(ispin)%matrix, Y_2, 1.0_dp, dbcsr_work2)
+         CALL cp_dbcsr_multiply('N', 'T', tau*e_fermi, force_data%P_occ(ispin)%matrix, Y_1, 1.0_dp, dbcsr_work2)
+         CALL cp_dbcsr_multiply('N', 'T', -tau*e_fermi, force_data%P_virt(ispin)%matrix, Y_2, 1.0_dp, dbcsr_work2)
 
          CALL dbt_copy_matrix_to_tensor(dbcsr_work2, t_2c_tmp)
          CALL dbt_copy(t_2c_tmp, t_2c_AO, move_data=.TRUE.)
@@ -1616,21 +1617,21 @@ CONTAINS
          IF (use_virial) CALL dbcsr_add(virial_ovlp, dbcsr_work2, 1.0_dp, pref)
 
          !The final contribution from Tr[(tau*Y_1*P_occ - tau*Y_2*P_virt) * der_F]
-         CALL dbcsr_multiply('N', 'N', fac*tau, Y_1, force_data%P_occ(ispin)%matrix, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', fac*tau, Y_1, force_data%P_occ(ispin)%matrix, 1.0_dp, &
                              force_data%sum_YP_tau(ispin)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply('N', 'N', -fac*tau, Y_2, force_data%P_virt(ispin)%matrix, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', -fac*tau, Y_2, force_data%P_virt(ispin)%matrix, 1.0_dp, &
                              force_data%sum_YP_tau(ispin)%matrix, retain_sparsity=.TRUE.)
 
          spin_fac = 0.5_dp*fac
          IF (open_shell) spin_fac = 2.0_dp*spin_fac
          !Build-up the RHS of the response equation.
-         CALL dbcsr_multiply('N', 'N', 1.0_dp*spin_fac, R_virt, exp_occ, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp*spin_fac, R_virt, exp_occ, 1.0_dp, &
                              force_data%sum_O_tau(ispin)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply('N', 'N', -1.0_dp*spin_fac, R_occ, exp_virt, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', -1.0_dp*spin_fac, R_occ, exp_virt, 1.0_dp, &
                              force_data%sum_O_tau(ispin)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply('N', 'N', tau*spin_fac, dbcsr_work_symm, Y_1, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', tau*spin_fac, dbcsr_work_symm, Y_1, 1.0_dp, &
                              force_data%sum_O_tau(ispin)%matrix, retain_sparsity=.TRUE.)
-         CALL dbcsr_multiply('N', 'N', tau*spin_fac, dbcsr_work_symm, Y_2, 1.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', tau*spin_fac, dbcsr_work_symm, Y_2, 1.0_dp, &
                              force_data%sum_O_tau(ispin)%matrix, retain_sparsity=.TRUE.)
 
          CALL timestop(handle2)
@@ -3861,13 +3862,13 @@ CONTAINS
       !Calculate PR(n) recursively
       CALL dbcsr_create(PRn, template=A, matrix_type=dbcsr_type_no_symmetry)
       CALL dbcsr_create(work, template=A, matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, P, R, 0.0_dp, work, filter_eps=filter_eps)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, P, R, 0.0_dp, work, filter_eps=filter_eps)
       CALL dbcsr_create(exp_A2n, template=A, matrix_type=dbcsr_type_no_symmetry)
 
       DO k = 1, n
          CALL matrix_exponential(exp_A2n, A, 1.0_dp, 0.5_dp**k, threshold)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, exp_A2n, work, 0.0_dp, PRn, filter_eps=filter_eps)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, work, exp_A2n, 1.0_dp, PRn, filter_eps=filter_eps)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, exp_A2n, work, 0.0_dp, PRn, filter_eps=filter_eps)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, work, exp_A2n, 1.0_dp, PRn, filter_eps=filter_eps)
          CALL dbcsr_copy(work, PRn)
       END DO
       CALL dbcsr_release(exp_A2n)
@@ -3889,8 +3890,8 @@ CONTAINS
       k = 1
       DO
          k = k + 1
-         CALL dbcsr_multiply('N', 'N', 1.0_dp/REAL(k, dp), A2n, work, 0.0_dp, Yk, filter_eps=filter_eps)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp/REAL(k, dp), work2, A2n, 0.0_dp, PRn, filter_eps=filter_eps)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp/REAL(k, dp), A2n, work, 0.0_dp, Yk, filter_eps=filter_eps)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp/REAL(k, dp), work2, A2n, 0.0_dp, PRn, filter_eps=filter_eps)
 
          CALL dbcsr_add(Yk, PRn, 1.0_dp, 1.0_dp)
          CALL dbcsr_add(Y, Yk, 1.0_dp, 1.0_dp)

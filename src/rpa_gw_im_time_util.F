@@ -11,6 +11,7 @@
 !>      06.2019 split from rpa_im_time.F [Frederick Stein]
 ! **************************************************************************************************
 MODULE rpa_gw_im_time_util
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
 
    USE atomic_kind_types,               ONLY: atomic_kind_type
    USE basis_set_types,                 ONLY: gto_basis_set_p_type
@@ -354,8 +355,8 @@ CONTAINS
                            reuse_arrays=.TRUE.)
          CALL dbcsr_distribution_release(dist)
 
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s(1)%matrix, mat_mo_coeff_gw_reflected, 0.0_dp, mat_work)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, mat_mo_coeff_gw_reflected, mat_work, 0.0_dp, mat_norm)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_s(1)%matrix, mat_mo_coeff_gw_reflected, 0.0_dp, mat_work)
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mat_mo_coeff_gw_reflected, mat_work, 0.0_dp, mat_norm)
 
          CALL dbcsr_release(mat_work)
 
@@ -377,7 +378,7 @@ CONTAINS
          CALL dbcsr_set_diag(mat_norm_diag, norm)
 
          CALL dbcsr_create(mat_mo_coeff_gw_reflected_norm, template=mat_mo_coeff_gw_reflected)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, mat_mo_coeff_gw_reflected, mat_norm_diag, 0.0_dp, mat_mo_coeff_gw_reflected_norm)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mat_mo_coeff_gw_reflected, mat_norm_diag, 0.0_dp, mat_mo_coeff_gw_reflected_norm)
          CALL dbcsr_release(mat_norm_diag)
 
          CALL dbcsr_filter(mat_mo_coeff_gw_reflected_norm, 1.0E-20_dp)

@@ -15,6 +15,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE response_solver
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE admm_methods,                    ONLY: admm_projection_derivative
    USE admm_types,                      ONLY: admm_type,&
                                               get_admm_env
@@ -2778,12 +2779,12 @@ CONTAINS
       DO ispin = 1, nspins
 
          ! tmp = H*CC^T
-         CALL dbcsr_multiply("N", "N", scaling, matrix_hz(ispin)%matrix, rho_ao(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", scaling, matrix_hz(ispin)%matrix, rho_ao(ispin)%matrix, &
                              0.0_dp, matrix_tmp, filter_eps=eps_filter)
          ! WHz = CC^T*tmp
          ! WHz = Wz + (scaling*P)*(focc*Hz)*(scaling*P)
          ! WHz = Wz + scaling*(P*Hz*P)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_tmp, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_tmp, &
                              1.0_dp, matrix_whz(ispin)%matrix, filter_eps=eps_filter, &
                              retain_sparsity=.TRUE.)
 

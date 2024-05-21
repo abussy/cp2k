@@ -16,6 +16,7 @@
 !> \author MI
 ! **************************************************************************************************
 MODULE qs_scf_block_davidson
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
 
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               copy_fm_to_dbcsr,&
@@ -542,8 +543,8 @@ CONTAINS
                            nze=0, data_type=dbcsr_type_real_default)
 
          CALL dbcsr_get_info(mo_coeff_b, nfullrows_total=n, nfullcols_total=k)
-         CALL dbcsr_multiply('n', 'n', 1.0_dp, matrix_h, mo_coeff_b, 0.0_dp, matrix_hc, last_column=k)
-         CALL dbcsr_multiply('n', 'n', 1.0_dp, matrix_s, mo_coeff_b, 0.0_dp, matrix_sc, last_column=k)
+         CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, matrix_h, mo_coeff_b, 0.0_dp, matrix_hc, last_column=k)
+         CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, matrix_s, mo_coeff_b, 0.0_dp, matrix_sc, last_column=k)
 
          ! compute Ritz values
          ritz_coeff = 0.0_dp
@@ -554,7 +555,7 @@ CONTAINS
          CALL cp_dbcsr_m_by_n_from_template(matrix_mm, template=matrix_s, m=nmo, n=nmo, &
                                             sym=dbcsr_type_no_symmetry)
 
-         CALL dbcsr_multiply('t', 'n', 1.0_dp, mo_coeff_b, matrix_hc, 0.0_dp, matrix_mm, last_column=k)
+         CALL cp_dbcsr_multiply('t', 'n', 1.0_dp, mo_coeff_b, matrix_hc, 0.0_dp, matrix_mm, last_column=k)
          CALL dbcsr_get_diag(matrix_mm, ritz_coeff)
          CALL mo_coeff%matrix_struct%para_env%sum(ritz_coeff)
 
@@ -691,8 +692,8 @@ CONTAINS
 
             CALL copy_fm_to_dbcsr(mo_conv_fm, mo_conv) !fm->dbcsr
 
-            CALL dbcsr_multiply('n', 'n', 1.0_dp, matrix_s, mo_conv, 0.0_dp, smo_conv, last_column=nmo_converged)
-            CALL dbcsr_multiply('n', 't', 1.0_dp, smo_conv, smo_conv, 0.0_dp, c_out, last_column=nao)
+            CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, matrix_s, mo_conv, 0.0_dp, smo_conv, last_column=nmo_converged)
+            CALL cp_dbcsr_multiply('n', 't', 1.0_dp, smo_conv, smo_conv, 0.0_dp, c_out, last_column=nao)
             ! project c_out out of H
             lambda = 100.0_dp*ABS(eigenvalues(homo))
             CALL dbcsr_add(c_out, matrix_h, lambda, 1.0_dp)
@@ -741,9 +742,9 @@ CONTAINS
 
             CALL copy_fm_to_dbcsr(mo_notconv_fm, mo_notconv) !fm->dbcsr
 
-            CALL dbcsr_multiply('n', 'n', 1.0_dp, c_out, mo_notconv, 0.0_dp, matrix_hc, &
+            CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, c_out, mo_notconv, 0.0_dp, matrix_hc, &
                                 last_column=nmo_not_converged)
-            CALL dbcsr_multiply('n', 'n', 1.0_dp, matrix_s, mo_notconv, 0.0_dp, matrix_sc, &
+            CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, matrix_s, mo_notconv, 0.0_dp, matrix_sc, &
                                 last_column=nmo_not_converged)
 
             CALL dbcsr_copy(matrix_z, matrix_sc)
@@ -757,7 +758,7 @@ CONTAINS
             CALL cp_dbcsr_m_by_n_from_template(matrix_mm, template=matrix_s, m=nmo_not_converged, n=nmo_not_converged, &
                                                sym=dbcsr_type_no_symmetry)
 
-            CALL dbcsr_multiply('t', 'n', 1.0_dp, mo_notconv, matrix_hc, 0.0_dp, matrix_mm, &
+            CALL cp_dbcsr_multiply('t', 'n', 1.0_dp, mo_notconv, matrix_hc, 0.0_dp, matrix_mm, &
                                 last_column=nmo_not_converged)
 
          ELSE
@@ -812,7 +813,7 @@ CONTAINS
          CALL cp_fm_to_fm_submat(matrix_mm_fm, h_block, nmat, nmat, 1, 1, 1, 1)
 
          ! compute the bottom left  ZSC (top right is transpose)
-         CALL dbcsr_multiply('t', 'n', 1.0_dp, matrix_pz, matrix_sc, 0.0_dp, matrix_mm, last_column=nmat)
+         CALL cp_dbcsr_multiply('t', 'n', 1.0_dp, matrix_pz, matrix_sc, 0.0_dp, matrix_mm, last_column=nmat)
          !  set the bottom left part of S[C,Z] block matrix  ZSC
          !copy sparse to full
          CALL copy_dbcsr_to_fm(matrix_mm, matrix_mm_fm)
@@ -821,7 +822,7 @@ CONTAINS
          CALL cp_fm_to_fm_submat(matrix_mmt_fm, s_block, nmat, nmat, 1, 1, 1, 1 + nmat)
 
          ! compute the bottom left  ZHC (top right is transpose)
-         CALL dbcsr_multiply('t', 'n', 1.0_dp, matrix_pz, matrix_hc, 0.0_dp, matrix_mm, last_column=nmat)
+         CALL cp_dbcsr_multiply('t', 'n', 1.0_dp, matrix_pz, matrix_hc, 0.0_dp, matrix_mm, last_column=nmat)
          ! set the bottom left part of S[C,Z] block matrix  ZHC
          CALL copy_dbcsr_to_fm(matrix_mm, matrix_mm_fm)
          CALL cp_fm_to_fm_submat(matrix_mm_fm, h_block, nmat, nmat, 1, 1, 1 + nmat, 1)
@@ -832,17 +833,17 @@ CONTAINS
 
          ! (reuse matrix_sc and matrix_hc to computr HZ and SZ)
          CALL dbcsr_get_info(matrix_pz, nfullrows_total=n, nfullcols_total=k)
-         CALL dbcsr_multiply('n', 'n', 1.0_dp, c_out, matrix_pz, 0.0_dp, matrix_hc, last_column=k)
-         CALL dbcsr_multiply('n', 'n', 1.0_dp, matrix_s, matrix_pz, 0.0_dp, matrix_sc, last_column=k)
+         CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, c_out, matrix_pz, 0.0_dp, matrix_hc, last_column=k)
+         CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, matrix_s, matrix_pz, 0.0_dp, matrix_sc, last_column=k)
 
          ! compute the bottom right  ZSZ
-         CALL dbcsr_multiply('t', 'n', 1.0_dp, matrix_pz, matrix_sc, 0.0_dp, matrix_mm, last_column=k)
+         CALL cp_dbcsr_multiply('t', 'n', 1.0_dp, matrix_pz, matrix_sc, 0.0_dp, matrix_mm, last_column=k)
          ! set the bottom right part of S[C,Z] block matrix  ZSZ
          CALL copy_dbcsr_to_fm(matrix_mm, matrix_mm_fm)
          CALL cp_fm_to_fm_submat(matrix_mm_fm, s_block, nmat, nmat, 1, 1, 1 + nmat, 1 + nmat)
 
          ! compute the bottom right  ZHZ
-         CALL dbcsr_multiply('t', 'n', 1.0_dp, matrix_pz, matrix_hc, 0.0_dp, matrix_mm, last_column=k)
+         CALL cp_dbcsr_multiply('t', 'n', 1.0_dp, matrix_pz, matrix_hc, 0.0_dp, matrix_mm, last_column=k)
          ! set the bottom right part of H[C,Z] block matrix  ZHZ
          CALL copy_dbcsr_to_fm(matrix_mm, matrix_mm_fm)
          CALL cp_fm_to_fm_submat(matrix_mm_fm, h_block, nmat, nmat, 1, 1, 1 + nmat, 1 + nmat)

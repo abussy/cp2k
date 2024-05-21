@@ -13,6 +13,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE mao_wfn_analysis
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_kind_types,               ONLY: get_atomic_kind
    USE basis_set_types,                 ONLY: gto_basis_set_p_type
    USE bibliography,                    ONLY: Ehrhardt1985,&
@@ -286,22 +287,22 @@ CONTAINS
       CALL dbcsr_create(axmat, name="TEMP", template=amat, matrix_type=dbcsr_type_no_symmetry)
       DO ispin = 1, nspin
          ! calculate MAO overlap matrix
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_smm(1)%matrix, mao_coef(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_smm(1)%matrix, mao_coef(ispin)%matrix, &
                              0.0_dp, cgmat)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, amat)
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mao_coef(ispin)%matrix, cgmat, 0.0_dp, amat)
          ! calculate inverse of MAO overlap
          threshold = 1.e-8_dp
          CALL invert_Hotelling(tmat, amat, threshold, norm_convergence=1.e-4_dp, silent=.TRUE.)
          CALL dbcsr_copy(mao_smat(ispin)%matrix, amat)
          ! calculate q-matrix q = C*Q*C
-         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_q(ispin)%matrix, mao_coef(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, matrix_q(ispin)%matrix, mao_coef(ispin)%matrix, &
                              0.0_dp, cgmat, filter_eps=eps_filter)
-         CALL dbcsr_multiply("T", "N", 1.0_dp, mao_coef(ispin)%matrix, cgmat, &
+         CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mao_coef(ispin)%matrix, cgmat, &
                              0.0_dp, qmat, filter_eps=eps_filter)
          CALL dbcsr_copy(mao_qmat(ispin)%matrix, qmat)
          ! calculate density matrix
-         CALL dbcsr_multiply("N", "N", 1.0_dp, qmat, tmat, 0.0_dp, axmat, filter_eps=eps_filter)
-         CALL dbcsr_multiply("N", "N", 1.0_dp, tmat, axmat, 0.0_dp, mao_dmat(ispin)%matrix, &
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, qmat, tmat, 0.0_dp, axmat, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply("N", "N", 1.0_dp, tmat, axmat, 0.0_dp, mao_dmat(ispin)%matrix, &
                              filter_eps=eps_filter)
       END DO
       CALL dbcsr_release(amat)
@@ -687,7 +688,7 @@ CONTAINS
                CALL cp_dbcsr_cholesky_restore(rumat, ssize, cholmat, crumat, op="SOLVE", pos="RIGHT", &
                                               transa="N", para_env=para_env, blacs_env=blacs_env)
                ! A = T*transpose(T)
-               CALL dbcsr_multiply("N", "T", 1.0_dp, crumat, crumat, 0.0_dp, amat, &
+               CALL cp_dbcsr_multiply("N", "T", 1.0_dp, crumat, crumat, 0.0_dp, amat, &
                                    filter_eps=eps_filter)
                ! Tr(P*A)
                CALL dbcsr_dot(matrix_p(ispin, 1)%matrix, amat, uaq(ia, ispin))

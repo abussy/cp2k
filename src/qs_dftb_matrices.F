@@ -10,6 +10,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE qs_dftb_matrices
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind,&
                                               get_atomic_kind_set
@@ -643,7 +644,7 @@ CONTAINS
                IF (.NOT. mo_array(ispin)%use_mo_coeff_b) THEN
                   CPABORT("")
                END IF
-               CALL dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin, 1)%matrix, mo_coeff, &
+               CALL cp_dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin, 1)%matrix, mo_coeff, &
                                    0.0_dp, mo_derivs(ispin)%matrix)
             END DO
          END BLOCK

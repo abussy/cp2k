@@ -12,6 +12,7 @@
 !>      03.2019 separated from mp2_ri_gpw [Frederick Stein]
 ! **************************************************************************************************
 MODULE mp2_integrals
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE OMP_LIB,                         ONLY: omp_get_num_threads,&
                                               omp_get_thread_num
    USE atomic_kind_types,               ONLY: atomic_kind_type
@@ -1173,9 +1174,9 @@ CONTAINS
 
       CALL timeset(routineN//"_mult_"//TRIM(intermed_mat%descr), handle)
 
-      CALL dbcsr_multiply("N", "N", 1.0_dp, mat_munu%matrix, mo_coeff_o, &
+      CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mat_munu%matrix, mo_coeff_o, &
                           0.0_dp, intermed_mat%matrix_ia_jnu, filter_eps=eps_filter)
-      CALL dbcsr_multiply("T", "N", 1.0_dp, intermed_mat%matrix_ia_jnu, mo_coeff_v, &
+      CALL cp_dbcsr_multiply("T", "N", 1.0_dp, intermed_mat%matrix_ia_jnu, mo_coeff_v, &
                           0.0_dp, intermed_mat%matrix_ia_jb, filter_eps=eps_filter)
       CALL timestop(handle)
 

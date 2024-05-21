@@ -12,6 +12,7 @@
 !> \author JGH (20.07.2006)
 ! **************************************************************************************************
 MODULE qs_moments
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE ai_angmom,                       ONLY: angmom
    USE ai_moments,                      ONLY: contract_cossin,&
                                               cossin,&
@@ -2377,7 +2378,7 @@ CONTAINS
          strace = 0._dp
          DO ispin = 1, dft_control%nspins
             IF (my_velreprs .AND. nmoments >= 2) THEN
-               CALL dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, moments(i)%matrix, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, moments(i)%matrix, &
                                    0.0_dp, tmp_ao)
                CALL dbcsr_trace(tmp_ao, trace)
             ELSE
@@ -2448,7 +2449,7 @@ CONTAINS
             strace = 0._dp
             DO ispin = 1, dft_control%nspins
                CALL dbcsr_set(tmp_ao, 0.0_dp)
-               CALL dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, magmom(i)%matrix, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, magmom(i)%matrix, &
                                    0.0_dp, tmp_ao)
                CALL dbcsr_trace(tmp_ao, trace)
                strace = strace + trace
@@ -2487,7 +2488,7 @@ CONTAINS
                      strace = 0._dp
                      DO ispin = 1, dft_control%nspins
                         CALL dbcsr_set(tmp_ao, 0.0_dp)
-                        CALL dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, momentum(idir)%matrix, &
+                        CALL cp_dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, momentum(idir)%matrix, &
                                             0.0_dp, tmp_ao)
                         CALL dbcsr_trace(tmp_ao, trace)
                         strace = strace + trace
@@ -2512,7 +2513,7 @@ CONTAINS
                      strace = 0._dp
                      DO ispin = 1, dft_control%nspins
                         CALL dbcsr_set(tmp_ao, 0._dp)
-                        CALL dbcsr_multiply("T", "N", 1._dp, rho_ao(ispin)%matrix, moments_der(i, idir)%matrix, 0._dp, tmp_ao)
+                        CALL cp_dbcsr_multiply("T", "N", 1._dp, rho_ao(ispin)%matrix, moments_der(i, idir)%matrix, 0._dp, tmp_ao)
                         CALL dbcsr_trace(tmp_ao, trace)
                         strace = strace + trace
                      END DO
@@ -2531,7 +2532,7 @@ CONTAINS
                         strace = 0._dp
                         DO ispin = 1, dft_control%nspins
                            CALL dbcsr_set(tmp_ao, 0._dp)
-                           CALL dbcsr_multiply("T", "N", 1._dp, rho_ao(ispin)%matrix, moments_der(i, idir)%matrix, 0._dp, tmp_ao)
+                           CALL cp_dbcsr_multiply("T", "N", 1._dp, rho_ao(ispin)%matrix, moments_der(i, idir)%matrix, 0._dp, tmp_ao)
                            CALL dbcsr_trace(tmp_ao, trace)
                            strace = strace + trace
                         END DO
@@ -2993,7 +2994,7 @@ CONTAINS
                strace = 0._dp
                DO ispin = 1, dft_control%nspins
                   CALL dbcsr_set(tmp_ao, 0.0_dp)
-                  CALL dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rvr(ind)%matrix, &
+                  CALL cp_dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rvr(ind)%matrix, &
                                       0.0_dp, tmp_ao)
                   CALL dbcsr_trace(tmp_ao, trace)
                   strace = strace + trace
@@ -3008,7 +3009,7 @@ CONTAINS
                strace = 0._dp
                DO ispin = 1, dft_control%nspins
                   CALL dbcsr_set(tmp_ao, 0.0_dp)
-                  CALL dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rrv_vrr(ind)%matrix, &
+                  CALL cp_dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rrv_vrr(ind)%matrix, &
                                       0.0_dp, tmp_ao)
                   CALL dbcsr_trace(tmp_ao, trace)
                   strace = strace + trace
@@ -3028,7 +3029,7 @@ CONTAINS
             strace = 0._dp
             DO ispin = 1, dft_control%nspins
                CALL dbcsr_set(tmp_ao, 0.0_dp)
-               CALL dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rv(ind)%matrix, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rv(ind)%matrix, &
                                    0.0_dp, tmp_ao)
                CALL dbcsr_trace(tmp_ao, trace)
                strace = strace + trace
@@ -3043,7 +3044,7 @@ CONTAINS
             strace = 0._dp
             DO ispin = 1, dft_control%nspins
                CALL dbcsr_set(tmp_ao, 0.0_dp)
-               CALL dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rrv(ind)%matrix, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rrv(ind)%matrix, &
                                    0.0_dp, tmp_ao)
                CALL dbcsr_trace(tmp_ao, trace)
                strace = strace + trace
@@ -3058,7 +3059,7 @@ CONTAINS
             strace = 0._dp
             DO ispin = 1, dft_control%nspins
                CALL dbcsr_set(tmp_ao, 0.0_dp)
-               CALL dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rxrv(ind)%matrix, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, rho_ao(ispin)%matrix, matrix_rxrv(ind)%matrix, &
                                    0.0_dp, tmp_ao)
                CALL dbcsr_trace(tmp_ao, trace)
                strace = strace + trace

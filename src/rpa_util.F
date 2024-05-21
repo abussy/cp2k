@@ -11,6 +11,7 @@
 !>      06.2019 Moved from rpa_ri_gpw.F [Frederick Stein]
 ! **************************************************************************************************
 MODULE rpa_util
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
 
    USE cell_types,                      ONLY: cell_type,&
                                               get_cell
@@ -367,7 +368,7 @@ CONTAINS
          IF (.NOT. do_kpoints_from_Gamma) THEN
 
             !  get the Coulomb matrix for Sigma_x = G*V
-            CALL dbcsr_multiply("T", "N", 1.0_dp, mat_L%matrix, mat_L%matrix, &
+            CALL cp_dbcsr_multiply("T", "N", 1.0_dp, mat_L%matrix, mat_L%matrix, &
                                 0.0_dp, mat_MinvVMinv%matrix, filter_eps=eps_filter_im_time)
 
          END IF
@@ -1282,7 +1283,7 @@ CONTAINS
       CALL timeset(routineN, handle)
 
       ! multiplication with RI metric/Coulomb operator
-      CALL dbcsr_multiply("N", "T", 1.0_dp, mat_P_omega, mat_L, &
+      CALL cp_dbcsr_multiply("N", "T", 1.0_dp, mat_P_omega, mat_L, &
                           0.0_dp, mat_work, filter_eps=eps_filter_im_time)
 
       CALL copy_dbcsr_to_fm(mat_work, fm_mat_work)

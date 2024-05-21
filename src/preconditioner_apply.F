@@ -13,6 +13,7 @@
 !> \author Joost VandeVondele (09.2002)
 ! **************************************************************************************************
 MODULE preconditioner_apply
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_restore
    USE cp_fm_types,                     ONLY: cp_fm_create,&
                                               cp_fm_get_info,&
@@ -169,7 +170,7 @@ CONTAINS
 
       IF (.NOT. ASSOCIATED(preconditioner_env%dbcsr_matrix)) &
          CPABORT("NOT ASSOCIATED preconditioner_env%dbcsr_matrix")
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, preconditioner_env%dbcsr_matrix, matrix_in, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, preconditioner_env%dbcsr_matrix, matrix_in, &
                           0.0_dp, matrix_out)
 
       CALL timestop(handle)
@@ -283,7 +284,7 @@ CONTAINS
       CALL timeset(routineN, handle)
 
       CALL dbcsr_copy(matrix_tmp, matrix_in, name="apply_full_all")
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, preconditioner_env%dbcsr_matrix, &
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, preconditioner_env%dbcsr_matrix, &
                           matrix_in, 0.0_dp, matrix_tmp)
       ! do the right scaling
       CALL dbcsr_iterator_start(iter, matrix_tmp)
@@ -303,7 +304,7 @@ CONTAINS
       CALL dbcsr_iterator_stop(iter)
 
       ! mult back
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, preconditioner_env%dbcsr_matrix, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, preconditioner_env%dbcsr_matrix, &
                           matrix_tmp, 0.0_dp, matrix_out)
       CALL dbcsr_release(matrix_tmp)
       CALL timestop(handle)

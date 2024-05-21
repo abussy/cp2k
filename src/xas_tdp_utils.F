@@ -11,6 +11,7 @@
 ! **************************************************************************************************
 
 MODULE xas_tdp_utils
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_cfm_diag,                     ONLY: cp_cfm_heevd
    USE cp_cfm_types,                    ONLY: cp_cfm_create,&
@@ -280,8 +281,8 @@ CONTAINS
             IF (do_hfx) CALL dbcsr_add(sc_matrix_tdp, matrix_d, 1.0_dp, -1.0_dp*sx) !scaled hfx
 
             ! The product with the Q projector
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, sc_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, sc_matrix_tdp, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, sc_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, sc_matrix_tdp, filter_eps=eps_filter)
 
          END IF !do_sc
 
@@ -294,8 +295,8 @@ CONTAINS
             IF (do_hfx) CALL dbcsr_add(sf_matrix_tdp, matrix_d, 1.0_dp, -1.0_dp*sx) !scaled hfx
 
             ! Take the product with the (spin-flip) Q projector
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, proj_Q_sf, sf_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q_sf, 0.0_dp, sf_matrix_tdp, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, proj_Q_sf, sf_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q_sf, 0.0_dp, sf_matrix_tdp, filter_eps=eps_filter)
 
          END IF !do_sf
 
@@ -309,8 +310,8 @@ CONTAINS
             IF (do_hfx) CALL dbcsr_add(sg_matrix_tdp, matrix_d, 1.0_dp, -1.0_dp*sx) ! scaled hfx
 
             ! Take the product with the Q projector:
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, sg_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, sg_matrix_tdp, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, sg_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, sg_matrix_tdp, filter_eps=eps_filter)
 
          END IF !do_sg (TDA)
 
@@ -323,8 +324,8 @@ CONTAINS
             IF (do_hfx) CALL dbcsr_add(tp_matrix_tdp, matrix_d, 1.0_dp, -1.0_dp*sx) ! scaled hfx
 
             ! Take the product with the Q projector:
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, tp_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, tp_matrix_tdp, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, tp_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, tp_matrix_tdp, filter_eps=eps_filter)
 
          END IF !do_tp (TDA)
 
@@ -351,14 +352,14 @@ CONTAINS
             END IF
 
             ! Take the product with the Q projector
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, sc_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, sc_matrix_tdp, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, sc_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, sc_matrix_tdp, filter_eps=eps_filter)
 
             ! Take the product with the inverse metric
             ! M <= G^-1 * M * G^-1
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, donor_state%metric(2)%matrix, sc_matrix_tdp, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, donor_state%metric(2)%matrix, sc_matrix_tdp, &
                                 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, work, donor_state%metric(2)%matrix, 0.0_dp, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, work, donor_state%metric(2)%matrix, 0.0_dp, &
                                 sc_matrix_tdp, filter_eps=eps_filter)
 
          END IF
@@ -379,14 +380,14 @@ CONTAINS
             END IF
 
             ! Take the product with the Q projector
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, sg_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, sg_matrix_tdp, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, sg_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, sg_matrix_tdp, filter_eps=eps_filter)
 
             ! Take the product with the inverse metric
             ! M <= G^-1 * M * G^-1
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, donor_state%metric(2)%matrix, sg_matrix_tdp, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, donor_state%metric(2)%matrix, sg_matrix_tdp, &
                                 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, work, donor_state%metric(2)%matrix, 0.0_dp, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, work, donor_state%metric(2)%matrix, 0.0_dp, &
                                 sg_matrix_tdp, filter_eps=eps_filter)
 
          END IF ! singlets
@@ -406,14 +407,14 @@ CONTAINS
             END IF
 
             ! Take the product with the Q projector
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, tp_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, tp_matrix_tdp, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, tp_matrix_tdp, 0.0_dp, work, filter_eps=eps_filter)
+            CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, tp_matrix_tdp, filter_eps=eps_filter)
 
             ! Take the product with the inverse metric
             ! M <= G^-1 * M * G^-1
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, donor_state%metric(2)%matrix, tp_matrix_tdp, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, donor_state%metric(2)%matrix, tp_matrix_tdp, &
                                 0.0_dp, work, filter_eps=eps_filter)
-            CALL dbcsr_multiply('N', 'N', 1.0_dp, work, donor_state%metric(2)%matrix, 0.0_dp, &
+            CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, work, donor_state%metric(2)%matrix, 0.0_dp, &
                                 tp_matrix_tdp, filter_eps=eps_filter)
 
          END IF ! triplets
@@ -590,9 +591,9 @@ CONTAINS
 !        tmp_mat =  (A-D+E)^0.5 * M * (A-D+E)^0.5
          CALL dbcsr_create(matrix=tmp_mat, template=matrix_tdp, matrix_type=dbcsr_type_no_symmetry)
          CALL dbcsr_create(matrix=tmp_mat2, template=matrix_tdp, matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, donor_state%matrix_aux, matrix_tdp, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, donor_state%matrix_aux, matrix_tdp, &
                              0.0_dp, tmp_mat2, filter_eps=xas_tdp_control%eps_filter)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, tmp_mat2, donor_state%matrix_aux, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, tmp_mat2, donor_state%matrix_aux, &
                              0.0_dp, tmp_mat, filter_eps=xas_tdp_control%eps_filter)
 
 !        Get the matrix as a fm
@@ -608,7 +609,7 @@ CONTAINS
 !        Retrieve c_diff = (c^+ - c^-) for normalization
 !        (c^+ - c^-) = 1/omega^2 * M * (A-D+E)^0.5 * work
          CALL cp_fm_create(c_diff, fm_struct)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_tdp, donor_state%matrix_aux, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_tdp, donor_state%matrix_aux, &
                              0.0_dp, tmp_mat, filter_eps=xas_tdp_control%eps_filter)
          CALL cp_dbcsr_sm_fm_multiply(tmp_mat, work, c_diff, ncol=nrow)
 
@@ -627,9 +628,9 @@ CONTAINS
 
 !        Get c_sum = (c^+ + c^-), which appears in all transition density related expressions
 !        c_sum = -1/omega G^-1 * (A-D+E) * (c^+ - c^-)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, donor_state%matrix_aux, donor_state%matrix_aux, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, donor_state%matrix_aux, donor_state%matrix_aux, &
                              0.0_dp, tmp_mat2, filter_eps=xas_tdp_control%eps_filter)
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, donor_state%metric(2)%matrix, tmp_mat2, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, donor_state%metric(2)%matrix, tmp_mat2, &
                              0.0_dp, tmp_mat, filter_eps=xas_tdp_control%eps_filter)
          CALL cp_dbcsr_sm_fm_multiply(tmp_mat, c_diff, c_sum, ncol=nrow)
          WHERE (tmp_evals .NE. 0) scaling = -1.0_dp/tmp_evals
@@ -1459,8 +1460,8 @@ CONTAINS
       END IF
 
       ! Take the product with the Q projector:
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, tmp_mat, 0.0_dp, work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, tmp_mat, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, proj_Q, tmp_mat, 0.0_dp, work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'T', 1.0_dp, work, proj_Q, 0.0_dp, tmp_mat, filter_eps=eps_filter)
 
       ! Actually computing and storing the auxiliary matrix
       ALLOCATE (donor_state%matrix_aux)
@@ -1791,13 +1792,13 @@ CONTAINS
 !  - sum_k,l,sigma <psi^0_k,sigma|SOC|psi^0_l,sigma> * <psi^Isc_l,sigma|psi^Jsc_k,sigma>
 
       !Same spin integration => only SOC_z matters, and the contribution is purely imaginary
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_sc, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_sc, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       !the overlap as well
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sc, 0.0_dp, dbcsr_work, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sc, 0.0_dp, dbcsr_work, &
                           filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
       CALL os_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_z, pref_diaga=1.0_dp, &
                                 pref_diagb=-1.0_dp, pref_tracea=-1.0_dp, pref_traceb=1.0_dp, &
@@ -1813,13 +1814,13 @@ CONTAINS
 !  - sum_k,l,sigma <psi^0_k,sigma|SOC|psi^0_l,sigma> * <psi^Isf_l,tau|psi^Jsf_k,tau> , tau != sigma
 
       !Same spin integration => only SOC_z matters, and the contribution is purely imaginary
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_sf, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_sf, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       !the overlap as well
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sf, 0.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sf, 0.0_dp, &
                           dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
       !note: the different prefactors are derived from the fact that because of spin-flip, we have
       !alpha-gs and beta-lr interaction
@@ -1839,13 +1840,13 @@ CONTAINS
       tas(2) = 1; tbs(2) = ndo_mo + 1
 
       !the overlap
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sf, 0.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sf, 0.0_dp, &
                           dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
       !start with the imaginary contribution
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_x, dbcsr_sc, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_x, dbcsr_sc, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       CALL os_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_x, pref_diaga=1.0_dp, &
                                 pref_diagb=1.0_dp, pref_tracea=-1.0_dp, pref_traceb=-1.0_dp, &
@@ -1856,8 +1857,8 @@ CONTAINS
                               s_firstcol=1, t_firstrow=2, t_firstcol=1 + nsc + 1)
 
       !follow up with the real contribution
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_sf, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_sf, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       CALL os_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_y, pref_diaga=1.0_dp, &
                                 pref_diagb=-1.0_dp, pref_tracea=1.0_dp, pref_traceb=-1.0_dp, &
@@ -2159,13 +2160,13 @@ CONTAINS
 
       !Now do the singlet-triplet SOC
       !start by computing the singlet-triplet overlap
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_tp, 0.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_tp, 0.0_dp, &
                           dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
       !singlet-triplet with Ms=+-1, imaginary part
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_x, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_x, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       CALL rcs_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_x, &
                                  pref_trace=-1.0_dp, pref_overall=-0.5_dp*sqrt2)
@@ -2183,8 +2184,8 @@ CONTAINS
                               t_firstcol=1 + nsg + 2*ntp + 1)
 
       !singlet-triplet with Ms=+-1, real part
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       CALL rcs_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_y, &
                                  pref_trace=-1.0_dp, pref_overall=-0.5_dp*sqrt2)
@@ -2201,8 +2202,8 @@ CONTAINS
                               t_firstcol=1 + nsg + 2*ntp + 1)
 
       !singlet-triplet with Ms=0, purely imaginary
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       CALL rcs_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_z, &
                                  pref_trace=-1.0_dp, pref_overall=1.0_dp)
@@ -2215,13 +2216,13 @@ CONTAINS
 
       !Now the triplet-triplet SOC
       !start by computing the overlap
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_tp, 0.0_dp, &
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_tp, 0.0_dp, &
                           dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
       !Ms=0 to Ms=+-1 SOC, imaginary part
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_x, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_x, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       CALL rcs_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_x, &
                                  pref_trace=1.0_dp, pref_overall=-0.5_dp*sqrt2)
@@ -2240,8 +2241,8 @@ CONTAINS
                               t_firstcol=1 + nsg + ntp + 1)
 
       !Ms=0 to Ms=+-1 SOC, real part
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       CALL rcs_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_y, &
                                  pref_trace=1.0_dp, pref_overall=0.5_dp*sqrt2)
@@ -2260,8 +2261,8 @@ CONTAINS
                               t_firstcol=1 + nsg + ntp + 1)
 
       !Ms=1 to Ms=1 and Ms=-1 to Ms=-1 SOC, purely imaginary
-      CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-      CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+      CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
       CALL rcs_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_soc_z, &
                                  pref_trace=1.0_dp, pref_overall=1.0_dp)
@@ -2508,13 +2509,13 @@ CONTAINS
 
          !  The spin-conserving/spin-conserving operator
          !overlap
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sc, 0.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sc, 0.0_dp, &
                              dbcsr_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
          !operator in SC LR-orbital basis
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, ao_op_i, dbcsr_sc, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, ao_op_i, dbcsr_sc, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sc, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
          CALL os_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_op, pref_diaga=1.0_dp, &
                                    pref_diagb=1.0_dp, pref_tracea=-1.0_dp, pref_traceb=-1.0_dp, &
@@ -2526,13 +2527,13 @@ CONTAINS
 
          !  The spin-flip/spin-flip operator
          !overlap
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sf, 0.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sf, 0.0_dp, &
                              dbcsr_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
          !operator in SF LR-orbital basis
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, ao_op_i, dbcsr_sf, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, ao_op_i, dbcsr_sf, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
          !need to reorganize the domo_op array by swapping the alpha-alpha and the beta-beta quarter
          tmp(1:ndo_mo, 1:ndo_mo) = domo_op(ndo_mo + 1:ndo_so, ndo_mo + 1:ndo_so)
@@ -2707,13 +2708,13 @@ CONTAINS
 
          ! do the singlet-singlet components
          !start with the overlap
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sg, 0.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sg, 0.0_dp, &
                              dbcsr_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
          !then the operator in the LR orbital basis
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, ao_op_i, dbcsr_sg, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, ao_op_i, dbcsr_sg, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
          !use the soc routine, it is compatible
          CALL rcs_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_op, pref_trace=-1.0_dp, &
@@ -2725,13 +2726,13 @@ CONTAINS
 
          ! compute the triplet-triplet components
          !the overlap
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_tp, 0.0_dp, &
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_tp, 0.0_dp, &
                              dbcsr_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_tp, dbcsr_work, 0.0_dp, dbcsr_ovlp, filter_eps=eps_filter)
 
          !the operator in the LR orbital basis
-         CALL dbcsr_multiply('N', 'N', 1.0_dp, ao_op_i, dbcsr_sg, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
-         CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('N', 'N', 1.0_dp, ao_op_i, dbcsr_sg, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
+         CALL cp_dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sg, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
          CALL rcs_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, domo_op, pref_trace=-1.0_dp, &
                                     pref_overall=1.0_dp, pref_diags=gsgs_op(i), symmetric=.TRUE.)

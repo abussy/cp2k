@@ -11,6 +11,7 @@
 !>      10.2011 created [Joost VandeVondele and Mauro Del Ben]
 ! **************************************************************************************************
 MODULE mp2_gpw_method
+   USE cp_dbcsr_multiplication,   ONLY: cp_dbcsr_multiply
    USE atomic_kind_types,               ONLY: atomic_kind_type
    USE cell_types,                      ONLY: cell_type
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
@@ -404,13 +405,13 @@ CONTAINS
             ! multiply and goooooooo ...
             CALL timeset(routineN//"_mult_o", handle3)
             DO ispin = 1, nspins
-               CALL dbcsr_multiply("N", "N", 1.0_dp, mat_munu%matrix, mo_coeff_o(ispin)%matrix, &
+               CALL cp_dbcsr_multiply("N", "N", 1.0_dp, mat_munu%matrix, mo_coeff_o(ispin)%matrix, &
                                    0.0_dp, matrix_ia_jnu(ispin), filter_eps=eps_filter)
             END DO
             CALL timestop(handle3)
             CALL timeset(routineN//"_mult_v", handle3)
             DO ispin = 1, nspins
-               CALL dbcsr_multiply("T", "N", 1.0_dp, matrix_ia_jnu(ispin), mo_coeff_v(ispin)%matrix, &
+               CALL cp_dbcsr_multiply("T", "N", 1.0_dp, matrix_ia_jnu(ispin), mo_coeff_v(ispin)%matrix, &
                                    0.0_dp, matrix_ia_jb(ispin), filter_eps=eps_filter)
             END DO
             CALL timestop(handle3)
