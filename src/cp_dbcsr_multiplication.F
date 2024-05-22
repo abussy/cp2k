@@ -187,7 +187,10 @@ CONTAINS
          CALL dbm_get_block_p(dbm_mat, row, col, blk)
 
          IF (.NOT. ASSOCIATED(blk)) CYCLE
-         IF (has_symmetry .AND. row > col) CYCLE
+         IF (has_symmetry) THEN
+            IF (checker_tr(row, col)) CYCLE                                              
+            IF (row > col) CALL swap(row, col)   
+         END IF
 
 !$OMP CRITICAL
          iblk = iblk + 1
@@ -209,15 +212,17 @@ CONTAINS
       DO WHILE (dbm_iterator_blocks_left(iter))
          CALL dbm_iterator_next_block(iter, row=row, column=col)
          CALL dbm_get_block_p(dbm_mat, row, col, blk)
-
+         
+         IF (has_symmetry .AND. checker_tr(row, col)) CYCLE
          IF (.NOT. ASSOCIATED(blk)) CYCLE
-         IF (has_symmetry .AND. row > col) CYCLE
-
-         CALL dbcsr_put_block(dbcsr_mat, row, col, blk)
+         IF (has_symmetry .AND. row > col) THEN
+            CALL dbcsr_put_block(dbcsr_mat, col, row, TRANSPOSE(blk))
+         ELSE
+            CALL dbcsr_put_block(dbcsr_mat, row, col, blk)
+         END IF
       END DO
       CALL dbm_iterator_stop(iter)
 !$OMP END PARALLEL
-
 
    END SUBROUTINE copy_dbm_to_dbcsr
  
@@ -260,5 +265,26 @@ CONTAINS
       CALL dbm_finalize(dbm_mat)
 
    END SUBROUTINE copy_dbcsr_to_dbm
+
+! ************************************************************************************************** 
+! ************************************************************************************************** 
+   ELEMENTAL FUNCTION checker_tr(row, column) RESULT(transpose)                                      
+      INTEGER, INTENT(IN)                                :: row, column                              
+      LOGICAL                                            :: transpose                                
+                                                                                                     
+      transpose = BTEST(column + row, 0) .EQV. column .GE. row                                       
+                                                                                                     
+   END FUNCTION checker_tr
+
+! ************************************************************************************************** 
+! ************************************************************************************************** 
+   ELEMENTAL SUBROUTINE swap(a, b)                                                                   
+      INTEGER, INTENT(INOUT)                             :: a, b                                     
+      INTEGER                                            :: tmp                                      
+                                                                                                     
+      tmp = a                                                                                        
+      a = b                                                                                          
+      b = tmp                                                                                        
+   END SUBROUTINE swap
 
 END MODULE cp_dbcsr_multiplication
