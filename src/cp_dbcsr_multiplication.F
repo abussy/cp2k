@@ -83,7 +83,6 @@ CONTAINS
       LOGICAL                                            :: dbm_transa, dbm_transb
       TYPE(mp_comm_type)                                 :: mp_comm
       TYPE(mp_cart_type)                                 :: dbm_comm
-      TYPE(dbcsr_type)                                   :: matrix_tmp
 
       CALL timeset(routineN, handle)
 
@@ -111,19 +110,16 @@ CONTAINS
          CALL copy_dbcsr_to_dbm(matrix_b, dbm_b)
          !TODO: might be more efficient to do a dbcsr_add at the end, and avoid desymmetrizing 
          !      or do a dbcsr_scale and a copy with summation 
-         !IF (beta > EPSILON(0.0_dp)) CALL copy_dbcsr_to_dbm(matrix_c, dbm_c)
-         CALL dbcsr_create(matrix_tmp, template=matrix_c)
+         IF (beta > EPSILON(0.0_dp) .OR. PRESENT(retain_sparsity)) CALL copy_dbcsr_to_dbm(matrix_c, dbm_c)
 
          dbm_transa = transa == dbcsr_transpose
          dbm_transb = transb == dbcsr_transpose
 
-         CALL dbm_multiply(dbm_transa, dbm_transb, alpha, dbm_a, dbm_b, 0.0_dp, dbm_c, &
+         CALL dbm_multiply(dbm_transa, dbm_transb, alpha, dbm_a, dbm_b, beta, dbm_c, &
                            retain_sparsity=retain_sparsity, filter_eps=filter_eps, flop=flop)
 
-         CALL copy_dbm_to_dbcsr(dbm_c, matrix_tmp)
-         CALL dbcsr_add(matrix_c, matrix_tmp, beta, 1.0_dp)
+         CALL copy_dbm_to_dbcsr(dbm_c, matrix_c)
 
-         CALL dbcsr_release(matrix_tmp)
          CALL dbm_release(dbm_a)
          CALL dbm_release(dbm_b)
          CALL dbm_release(dbm_c)
