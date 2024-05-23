@@ -137,10 +137,15 @@ CONTAINS
       TYPE(dbm_type), INTENT(INOUT)                      :: dbm_mat
       TYPE(mp_cart_type), INTENT(IN)                     :: dbm_comm
 
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_dbm_from_dbcsr'
+
+      INTEGER                                            :: handle
       INTEGER, DIMENSION(:), POINTER, CONTIGUOUS         :: row_dist, col_dist, row_blk_size, col_blk_size
       TYPE(dbm_distribution_obj)                         :: dbm_dist
 
       NULLIFY(row_dist, col_dist, row_blk_size, col_blk_size)
+
+      CALL timeset(routineN, handle)
 
       !Get distribution and block size from DBCSR matrix, create a DBM matrix with the same
       CALL dbcsr_get_info(dbcsr_mat, row_blk_size=row_blk_size, col_blk_size=col_blk_size, &
@@ -152,6 +157,8 @@ CONTAINS
 
       CALL dbm_distribution_release(dbm_dist)
 
+      CALL timestop(handle)
+
    END SUBROUTINE create_dbm_from_dbcsr
 
 ! **************************************************************************************************
@@ -160,13 +167,18 @@ CONTAINS
       TYPE(dbm_type), INTENT(INOUT)                      :: dbm_mat
       TYPE(dbcsr_type), INTENT(INOUT)                    :: dbcsr_mat
 
+      
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'copy_dbm_to_dbcsr'
+
       TYPE(dbm_iterator)                                 :: iter
-      INTEGER                                            :: row, col, iblk, nblk
+      INTEGER                                            :: row, col, iblk, nblk, handle
       REAL(dp), DIMENSION(:, :), POINTER                 :: blk
       LOGICAL                                            :: has_symmetry
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: row_idx, col_idx 
 
       NULLIFY(blk)
+
+      CALL timeset(routineN, handle)
 
       CALL dbcsr_clear(dbcsr_mat)
       has_symmetry = dbcsr_has_symmetry(dbcsr_mat)
@@ -220,6 +232,8 @@ CONTAINS
       CALL dbm_iterator_stop(iter)
 !$OMP END PARALLEL
 
+      CALL timestop(handle)
+
    END SUBROUTINE copy_dbm_to_dbcsr
  
 ! **************************************************************************************************
@@ -228,12 +242,16 @@ CONTAINS
       TYPE(dbcsr_type), TARGET, INTENT(IN)               :: dbcsr_mat
       TYPE(dbm_type), INTENT(INOUT)                      :: dbm_mat
 
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_dbm_from_dbcsr'
+
       TYPE(dbcsr_iterator_type)                          :: iter
-      INTEGER                                            :: row, col
+      INTEGER                                            :: row, col, handle
       REAL(dp), DIMENSION(:, :), POINTER                 :: blk
       TYPE(dbcsr_type), POINTER                          :: dbcsr_desym
 
       NULLIFY(blk, dbcsr_desym)
+
+      CALL timeset(routineN, handle)
 
       IF (dbcsr_has_symmetry(dbcsr_mat)) THEN
          ALLOCATE (dbcsr_desym)
@@ -259,6 +277,8 @@ CONTAINS
       END IF
 
       CALL dbm_finalize(dbm_mat)
+
+      CALL timestop(handle)
 
    END SUBROUTINE copy_dbcsr_to_dbm
 
