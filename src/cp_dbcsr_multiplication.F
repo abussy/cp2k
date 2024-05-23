@@ -83,6 +83,7 @@ CONTAINS
       LOGICAL                                            :: dbm_transa, dbm_transb
       TYPE(mp_comm_type)                                 :: mp_comm
       TYPE(mp_cart_type)                                 :: dbm_comm
+      TYPE(dbcsr_distribution_type)                      :: dbcsr_dist
 
       CALL timeset(routineN, handle)
 
@@ -96,10 +97,10 @@ CONTAINS
 
       ELSE
 
-         CALL dbcsr_get_info(matrix_a, group=group)
+         CALL dbcsr_get_info(matrix_a, group=group, distribution=dbcsr_dist)
+         CALL dbcsr_distribution_get(dbcsr_dist, nprows=pdims(1), npcols=pdims(2))
          CALL mp_comm%set_handle(group)
 
-         pdims(:) = 0
          CALL dbm_comm%create(mp_comm, 2, pdims)
 
          CALL create_dbm_from_dbcsr(matrix_a, dbm_a, dbm_comm)
