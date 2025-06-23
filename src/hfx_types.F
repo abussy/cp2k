@@ -1532,13 +1532,15 @@ CONTAINS
             END DO
          END DO
          DEALLOCATE (ri_data%t_3c_int_ctr_3)
-
-         DO j = 1, SIZE(ri_data%t_2c_int, 2)
-            DO i = 1, SIZE(ri_data%t_2c_int, 1)
-               CALL dbt_destroy(ri_data%t_2c_int(i, j))
+         
+         IF (ALLOCATED(ri_data%t_2c_int)) THEN
+            DO j = 1, SIZE(ri_data%t_2c_int, 2)
+               DO i = 1, SIZE(ri_data%t_2c_int, 1)
+                  CALL dbt_destroy(ri_data%t_2c_int(i, j))
+               END DO
             END DO
-         END DO
-         DEALLOCATE (ri_data%t_2c_int)
+            DEALLOCATE (ri_data%t_2c_int)
+         END IF
 
          DO j = 1, SIZE(ri_data%rho_ao_t, 2)
             DO i = 1, SIZE(ri_data%rho_ao_t, 1)
@@ -1583,19 +1585,23 @@ CONTAINS
          DEALLOCATE (ri_data%t_3c_ctr_KS_copy)
       END IF
 
-      DO j = 1, SIZE(ri_data%t_2c_inv, 2)
-         DO i = 1, SIZE(ri_data%t_2c_inv, 1)
-            CALL dbt_destroy(ri_data%t_2c_inv(i, j))
+      IF (ALLOCATED(ri_data%t_2c_inv)) THEN
+         DO j = 1, SIZE(ri_data%t_2c_inv, 2)
+            DO i = 1, SIZE(ri_data%t_2c_inv, 1)
+               CALL dbt_destroy(ri_data%t_2c_inv(i, j))
+            END DO
          END DO
-      END DO
-      DEALLOCATE (ri_data%t_2c_inv)
+         DEALLOCATE (ri_data%t_2c_inv)
+      END IF
 
-      DO j = 1, SIZE(ri_data%t_2c_pot, 2)
-         DO i = 1, SIZE(ri_data%t_2c_pot, 1)
-            CALL dbt_destroy(ri_data%t_2c_pot(i, j))
+      IF (ALLOCATED(ri_data%t_2c_pot)) THEN
+         DO j = 1, SIZE(ri_data%t_2c_pot, 2)
+            DO i = 1, SIZE(ri_data%t_2c_pot, 1)
+               CALL dbt_destroy(ri_data%t_2c_pot(i, j))
+            END DO
          END DO
-      END DO
-      DEALLOCATE (ri_data%t_2c_pot)
+         DEALLOCATE (ri_data%t_2c_pot)
+      END IF
 
       IF (ALLOCATED(ri_data%kp_mat_2c_pot)) THEN
          DO j = 1, SIZE(ri_data%kp_mat_2c_pot, 2)
