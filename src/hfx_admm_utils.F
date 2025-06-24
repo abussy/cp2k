@@ -1061,7 +1061,7 @@ CONTAINS
          END IF
 
          CALL hfx_ri_update_ks_kp(qs_env, x_data(irep, 1)%ri_data, matrix_ks_orb, ehfx, &
-                                  rho_ao_orb, s_mstruct_changed, calculate_forces, nspins, &
+                                  rho_ao_orb, s_mstruct_changed, nspins, &
                                   x_data(irep, 1)%general_parameter%fraction)
 
          IF (calculate_forces) THEN

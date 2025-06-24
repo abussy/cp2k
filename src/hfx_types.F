@@ -423,7 +423,7 @@ MODULE hfx_types
       TYPE(dbt_type), DIMENSION(:, :), ALLOCATABLE    :: t_2c_pot
 
       ! 2c tensor in matrix format for K-points RI-HFX
-      TYPE(dbcsr_type), DIMENSION(:, :), ALLOCATABLE  :: kp_mat_2c_pot
+      TYPE(dbcsr_type), DIMENSION(:), ALLOCATABLE  :: kp_mat_2c_pot, kp_mat_2c_met
 
       ! 2c tensor in (RI | RI) format for contraction
       TYPE(dbt_type), DIMENSION(:, :), ALLOCATABLE    :: t_2c_int
@@ -1604,12 +1604,17 @@ CONTAINS
       END IF
 
       IF (ALLOCATED(ri_data%kp_mat_2c_pot)) THEN
-         DO j = 1, SIZE(ri_data%kp_mat_2c_pot, 2)
-            DO i = 1, SIZE(ri_data%kp_mat_2c_pot, 1)
-               CALL dbcsr_release(ri_data%kp_mat_2c_pot(i, j))
-            END DO
+         DO i = 1, SIZE(ri_data%kp_mat_2c_pot, 1)
+            CALL dbcsr_release(ri_data%kp_mat_2c_pot(i))
          END DO
          DEALLOCATE (ri_data%kp_mat_2c_pot)
+      END IF
+
+      IF (ALLOCATED(ri_data%kp_mat_2c_met)) THEN
+         DO i = 1, SIZE(ri_data%kp_mat_2c_met, 1)
+            CALL dbcsr_release(ri_data%kp_mat_2c_met(i))
+         END DO
+         DEALLOCATE (ri_data%kp_mat_2c_met)
       END IF
 
       IF (ALLOCATED(ri_data%kp_t_3c_int)) THEN
