@@ -375,7 +375,7 @@ MODULE hfx_types
                        kp_image_range = 0.0_dp, kp_bump_rad = 0.0_dp
       INTEGER :: t2c_sqrt_order = 0, max_iter_lanczos = 0, flavor = 0, unit_nr_dbcsr = -1, unit_nr = -1, &
                  min_bsize = 0, max_bsize_MO = 0, t2c_method = 0, nelectron_total = 0, input_flavor = 0, &
-                 ncell_RI = 0, nimg = 0, kp_stack_size = 0, nimg_nze = 0
+                 ncell_RI = 0, nimg = 0, kp_stack_size = 0, nimg_nze = 0, kp_ngroups = 1
       LOGICAL :: check_2c_inv = .FALSE., calc_condnum = .FALSE.
 
       TYPE(libint_potential_type) :: ri_metric = libint_potential_type()
