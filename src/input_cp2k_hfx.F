@@ -543,6 +543,22 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="SCALE_COULOMB", &
+                          description="Scales Hartree-Fock contribution arising from a coulomb potential. "// &
+                          "Only valid when doing a mixed potential calculation. " // &
+                          "Default is SCALE_COULOMB from INTERACTION_POTENTIAL", &
+                          usage="SCALE_COULOMB 1.0", default_r_val=1.0_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SCALE_LONGRANGE", &
+                          description="Scales Hartree-Fock contribution arising from a longrange potential. "// &
+                          "Only valid when doing a mixed potential calculation." // &
+                          "Default if SCALE_LONGRANGE from INTERACTION_POTENTIAL", &
+                          usage="SCALE_LONGRANGE 1.0", default_r_val=1.0_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="KP_NGROUPS", &
                           description="The number of MPI subgroup that work in parallel during the SCF. "// &
                           "The default value is 1. Using N subgroups should speed up the "// &
@@ -579,7 +595,7 @@ CONTAINS
                           variants=(/"STACK_SIZE"/), &
                           usage="KP_STACK_SIZE {int}", &
                           repeats=.FALSE., &
-                          default_i_val=32)
+                          default_i_val=16)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

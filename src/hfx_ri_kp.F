@@ -66,7 +66,7 @@ MODULE hfx_ri_kp
                                               section_vals_val_set
    USE iterate_matrix,                  ONLY: invert_hotelling
    USE kinds,                           ONLY: dp,&
-                                              int_8
+                                              int_8, default_string_length
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
    USE libint_2c_3c,                    ONLY: cutoff_screen_factor
@@ -433,7 +433,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ri_update_ks_kp'
 
       INTEGER :: b_img, batch_size, group_size, handle, handle2, i_batch, i_img, i_spin, iatom, &
-         iblk, igroup, jatom, mb_img, n_batch_nze, natom, ngroups, nimg, nimg_nze
+         iblk, igroup, jatom, mb_img, n_batch_nze, natom, ngroups, nimg, nimg_nze, iprint, rep
       INTEGER(int_8)                                     :: nflop, nze
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: batch_ranges_at, batch_ranges_nze, &
                                                             idx_to_at_AO
@@ -442,6 +442,7 @@ CONTAINS
       LOGICAL                                            :: use_delta_p
       REAL(dp)                                           :: etmp, fac, occ, pfac, pref, t1, t2, t3, &
                                                             t4
+      CHARACTER(LEN=default_string_length)               :: bar
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_sub
       TYPE(dbcsr_type)                                   :: ks_desymm, rho_desymm, tmp
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:)        :: mat_2c_pot
@@ -583,10 +584,33 @@ CONTAINS
       CALL dbt_batched_contract_init(t_3c_work_2(1), batch_range_1=batch_ranges_at)
       CALL dbt_batched_contract_init(t_3c_work_2(2), batch_range_1=batch_ranges_at)
 
+      !TODO: measure memory usage here and add an estimate on t_3c_work*ngroups
+      !      or mayve do that even before splitting to subgroups
+
+      iprint = 1
       t1 = m_walltime()
       ri_data%kp_cost(:, :, :) = 0.0_dp
       ALLOCATE (iapc_pairs(nimg, 2))
       DO b_img = 1, nimg
+         !TODO: make it optional with a keyword
+         IF (ri_data%unit_nr > 0) THEN
+            IF (b_img == 1) THEN
+               WRITE(ri_data%unit_nr, '(/T6,A)', advance="no") '[-'
+            END IF
+            IF (b_img > iprint*nimg/71) THEN
+               rep = MAX(1, 71/nimg)
+               bar = repeat("-", rep)
+               WRITE(ri_data%unit_nr, '(A)', advance="no") trim(bar)
+               CALL m_flush(ri_data%unit_nr)
+               iprint = iprint + 1
+            END IF
+            IF (b_img == nimg) THEN
+               rep = MAX(0, 1 + 71 - iprint*rep)
+               bar = repeat("-", rep)
+               WRITE(ri_data%unit_nr, '(A,A)') trim(bar), '-]'
+               CALL m_flush(ri_data%unit_nr)
+            END IF
+         END IF
          CALL dbt_batched_contract_init(ks_t_split(1))
          CALL dbt_batched_contract_init(ks_t_split(2))
          DO jatom = 1, natom
@@ -2324,12 +2348,12 @@ CONTAINS
       CHARACTER(len=*), PARAMETER                        :: routineN = 'contract_pmat_3c'
 
       INTEGER                                            :: apc_img, batch_size, handle, i_batch, &
-                                                            i_img, i_spin, j_batch, n_batch_img, &
-                                                            n_batch_nze, nimg, nimg_nze, nspins
+                                                            i_img, i_spin, j_batch, n_batch_img, idx, &
+                                                            n_batch_nze, nimg, nimg_nze, nspins, b_img
       INTEGER(int_8)                                     :: nflop, nze
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: batch_ranges_img, batch_ranges_nze, &
-                                                            int_indices
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: ac_pairs
+                                                            int_indices, apc_filter
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: ac_pairs, iapc_pairs
       REAL(dp)                                           :: occ, t1, t2
       TYPE(dbt_type)                                     :: t_3c_tmp
       TYPE(dbt_type), ALLOCATABLE, DIMENSION(:)          :: ints_stack, res_stack, rho_stack
@@ -2345,7 +2369,22 @@ CONTAINS
 
       CALL dbt_create(t_3c_apc(1, 1), t_3c_tmp)
 
-      batch_size = ri_data%kp_stack_size*ri_data%kp_ngroups !keep consistent memory usage
+      batch_size = ri_data%kp_stack_size
+
+      !TEST: filter out some apc_img
+      !TODO: does it help with large systems like Michelle's?
+      !      Go ahead and measure memory usage during this routine, with and without this filter
+      !      This seems to be fast and correct at least
+      ALLOCATE(apc_filter(nimg), iapc_pairs(nimg, 2))
+      apc_filter = 0
+      DO b_img = 1, nimg
+         CALL get_iapc_pairs(iapc_pairs, b_img, ri_data, qs_env)
+         DO i_img = 1, nimg_nze
+            idx = iapc_pairs(i_img, 2)
+            IF (idx < 1 .OR. idx > nimg) CYCLE
+            apc_filter(idx) = 1
+         END DO
+      END DO
 
       !batching over all images
       n_batch_img = nimg/batch_size
@@ -2386,6 +2425,7 @@ CONTAINS
             DO i_batch = 1, n_batch_img
                !Second batch is over the P matrix. Here we fill the stacked rho tensors col by col
                DO apc_img = batch_ranges_img(i_batch), batch_ranges_img(i_batch + 1) - 1
+                  IF (apc_filter(apc_img) == 0) CYCLE
                   CALL get_ac_pairs(ac_pairs, apc_img, ri_data, qs_env)
                   CALL fill_2c_stack(rho_stack(1), rho_ao_t(i_spin, :), ac_pairs(:, 2), 1, ri_data, &
                                      img_bounds=[batch_ranges_nze(j_batch), batch_ranges_nze(j_batch + 1)], &
@@ -2407,8 +2447,11 @@ CONTAINS
                CALL dbt_batched_contract_finalize(rho_stack(2))
                CALL dbt_copy(res_stack(2), res_stack(1), move_data=.TRUE.)
 
+               !TODO: do we really need to populate all apc_img? Are they all needed?
+               !      maybe loop over b_img and i_img < nimg_nze, and see if some apc_img not used
                DO apc_img = batch_ranges_img(i_batch), batch_ranges_img(i_batch + 1) - 1
                   !Destack the resulting tensor and put it in t_3c_apc with correct apc_img
+                  IF (apc_filter(apc_img) == 0) CYCLE
                   CALL unstack_t_3c_apc(t_3c_tmp, res_stack(1), apc_img - batch_ranges_img(i_batch) + 1)
                   CALL dbt_copy(t_3c_tmp, t_3c_apc(i_spin, apc_img), summation=.TRUE., move_data=.TRUE.)
                END DO
@@ -2485,7 +2528,7 @@ CONTAINS
       DEALLOCATE (dist1, dist2)
 
       !For more efficiency, we stack multiple images of the 3-center integrals into a single tensor
-      batch_size = ri_data%kp_stack_size*ri_data%kp_ngroups !keep consistent memory usage
+      batch_size = ri_data%kp_stack_size
       n_batch = nimg/batch_size
       IF (MODULO(nimg, batch_size) .NE. 0) n_batch = n_batch + 1
       ALLOCATE (batch_ranges(n_batch + 1))
@@ -4237,6 +4280,7 @@ CONTAINS
 
       !In case of shortrange HFX potential, it is imprtant to be consistent with the rest of the KP
       !code, and use EPS_SCHWARZ to determine the range (rather than eps_filter_2c in normal RI-HFX)
+      !TODO: print warning against using SHORTRANGE for performance reasons? (suggest TC instead)
       IF (ri_data%hfx_pot%potential_type == do_potential_short) THEN
          CALL erfc_cutoff(ri_data%eps_schwarz, ri_data%hfx_pot%omega, ri_data%hfx_pot%cutoff_radius)
       END IF
@@ -4366,6 +4410,7 @@ CONTAINS
       END DO
 
       !Print some info
+      !TODO: print stack size
       IF (ri_data%unit_nr > 0) THEN
          WRITE (ri_data%unit_nr, FMT="(/T3,A,I29)") &
             "KP-HFX_RI_INFO| Number of RI-KP parallel groups:", ngroups
