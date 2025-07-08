@@ -58,7 +58,8 @@ MODULE qs_tensors
    USE input_constants,                 ONLY: do_potential_coulomb,&
                                               do_potential_id,&
                                               do_potential_short,&
-                                              do_potential_truncated
+                                              do_potential_truncated, &
+                                              do_potential_mix_cl_trunc
    USE input_section_types,             ONLY: section_vals_val_get
    USE kinds,                           ONLY: dp,&
                                               int_8
@@ -223,7 +224,8 @@ CONTAINS
          END DO !ikind
 
       ELSE IF (potential_parameter%potential_type == do_potential_truncated .OR. &
-               potential_parameter%potential_type == do_potential_short) THEN
+               potential_parameter%potential_type == do_potential_short .OR. &
+               potential_parameter%potential_type == do_potential_mix_cl_trunc) THEN
 
          !Truncated coulomb/short range: set j_radius to r_cutoff + the kind_radii
          DO ikind = 1, nkind
@@ -711,7 +713,8 @@ CONTAINS
          op_jk = potential_parameter%potential_type
       END SELECT
 
-      IF (op_ij == do_potential_truncated .OR. op_ij == do_potential_short) THEN
+      IF (op_ij == do_potential_truncated .OR. op_ij == do_potential_short &
+          .OR. op_ij == do_potential_mix_cl_trunc) THEN
          dr_ij = potential_parameter%cutoff_radius*cutoff_screen_factor
          dr_ik = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (op_ij == do_potential_coulomb) THEN
@@ -719,7 +722,8 @@ CONTAINS
          dr_ik = 1000000.0_dp
       END IF
 
-      IF (op_jk == do_potential_truncated .OR. op_jk == do_potential_short) THEN
+      IF (op_jk == do_potential_truncated .OR. op_jk == do_potential_short &
+          .OR. op_jk == do_potential_mix_cl_trunc) THEN
          dr_jk = potential_parameter%cutoff_radius*cutoff_screen_factor
          dr_ik = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (op_jk == do_potential_coulomb) THEN
@@ -1026,7 +1030,8 @@ CONTAINS
 
       dr_ij = 0.0_dp; dr_jk = 0.0_dp; dr_ik = 0.0_dp
 
-      IF (op_ij == do_potential_truncated .OR. op_ij == do_potential_short) THEN
+      IF (op_ij == do_potential_truncated .OR. op_ij == do_potential_short &
+          .OR. op_ij == do_potential_mix_cl_trunc) THEN
          dr_ij = potential_parameter%cutoff_radius*cutoff_screen_factor
          dr_ik = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (op_ij == do_potential_coulomb) THEN
@@ -1034,7 +1039,8 @@ CONTAINS
          dr_ik = 1000000.0_dp
       END IF
 
-      IF (op_jk == do_potential_truncated .OR. op_jk == do_potential_short) THEN
+      IF (op_jk == do_potential_truncated .OR. op_jk == do_potential_short &
+          .OR. op_jk == do_potential_mix_cl_trunc) THEN
          dr_jk = potential_parameter%cutoff_radius*cutoff_screen_factor
          dr_ik = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (op_jk == do_potential_coulomb) THEN
@@ -1180,7 +1186,8 @@ CONTAINS
       END DO !ilist
 
       !Init the truncated Coulomb operator
-      IF (op_ij == do_potential_truncated .OR. op_jk == do_potential_truncated) THEN
+      IF (op_ij == do_potential_truncated .OR. op_jk == do_potential_truncated .OR. &
+          op_ij == do_potential_mix_cl_trunc .OR. op_jk == do_potential_mix_cl_trunc) THEN
 
          IF (m_max > get_lmax_init()) THEN
             IF (para_env%mepos == 0) THEN
@@ -1700,7 +1707,8 @@ CONTAINS
 
       dr_ij = 0.0_dp; dr_jk = 0.0_dp; dr_ik = 0.0_dp
 
-      IF (op_ij == do_potential_truncated .OR. op_ij == do_potential_short) THEN
+      IF (op_ij == do_potential_truncated .OR. op_ij == do_potential_short &
+          .OR. op_ij == do_potential_mix_cl_trunc) THEN
          dr_ij = potential_parameter%cutoff_radius*cutoff_screen_factor
          dr_ik = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (op_ij == do_potential_coulomb) THEN
@@ -1708,7 +1716,8 @@ CONTAINS
          dr_ik = 1000000.0_dp
       END IF
 
-      IF (op_jk == do_potential_truncated .OR. op_jk == do_potential_short) THEN
+      IF (op_jk == do_potential_truncated .OR. op_jk == do_potential_short &
+          .OR. op_jk == do_potential_mix_cl_trunc) THEN
          dr_jk = potential_parameter%cutoff_radius*cutoff_screen_factor
          dr_ik = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (op_jk == do_potential_coulomb) THEN
@@ -1798,7 +1807,8 @@ CONTAINS
       END DO !ilist
 
       !Init the truncated Coulomb operator
-      IF (op_ij == do_potential_truncated .OR. op_jk == do_potential_truncated) THEN
+      IF (op_ij == do_potential_truncated .OR. op_jk == do_potential_truncated .OR. &
+          op_ij == do_potential_mix_cl_trunc .OR. op_jk == do_potential_mix_cl_trunc) THEN
 
          IF (m_max > get_lmax_init()) THEN
             IF (para_env%mepos == 0) THEN
@@ -2235,7 +2245,8 @@ CONTAINS
 
       dr_ij = 0.0_dp; dr_jk = 0.0_dp; dr_ik = 0.0_dp
 
-      IF (op_ij == do_potential_truncated .OR. op_ij == do_potential_short) THEN
+      IF (op_ij == do_potential_truncated .OR. op_ij == do_potential_short &
+          .OR. op_ij == do_potential_mix_cl_trunc) THEN
          dr_ij = potential_parameter%cutoff_radius*cutoff_screen_factor
          dr_ik = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (op_ij == do_potential_coulomb) THEN
@@ -2243,7 +2254,8 @@ CONTAINS
          dr_ik = 1000000.0_dp
       END IF
 
-      IF (op_jk == do_potential_truncated .OR. op_jk == do_potential_short) THEN
+      IF (op_jk == do_potential_truncated .OR. op_jk == do_potential_short &
+          .OR. op_jk == do_potential_mix_cl_trunc) THEN
          dr_jk = potential_parameter%cutoff_radius*cutoff_screen_factor
          dr_ik = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (op_jk == do_potential_coulomb) THEN
@@ -2364,7 +2376,8 @@ CONTAINS
       END DO !ilist
 
       !Init the truncated Coulomb operator
-      IF (op_ij == do_potential_truncated .OR. op_jk == do_potential_truncated) THEN
+      IF (op_ij == do_potential_truncated .OR. op_jk == do_potential_truncated &
+          .OR. op_ij == do_potential_mix_cl_trunc .OR. op_jk == do_potential_mix_cl_trunc) THEN
 
          IF (m_max > get_lmax_init()) THEN
             IF (para_env%mepos == 0) THEN
@@ -2834,7 +2847,7 @@ CONTAINS
       m_max = maxli + maxlj + 1
 
       !Init the truncated Coulomb operator
-      IF (op_prv == do_potential_truncated) THEN
+      IF (op_prv == do_potential_truncated .OR. op_prv == do_potential_mix_cl_trunc) THEN
 
          IF (m_max > get_lmax_init()) THEN
             IF (para_env%mepos == 0) THEN
@@ -3039,7 +3052,7 @@ CONTAINS
       m_max = maxli + maxlj + 1
 
       !Init the truncated Coulomb operator
-      IF (op_prv == do_potential_truncated) THEN
+      IF (op_prv == do_potential_truncated .OR. op_prv == do_potential_mix_cl_trunc) THEN
 
          IF (m_max > get_lmax_init()) THEN
             IF (para_env%mepos == 0) THEN
@@ -3263,7 +3276,7 @@ CONTAINS
       m_max = maxli + maxlj
 
       !Init the truncated Coulomb operator
-      IF (op_prv == do_potential_truncated) THEN
+      IF (op_prv == do_potential_truncated .OR. op_prv == do_potential_mix_cl_trunc) THEN
 
          IF (m_max > get_lmax_init()) THEN
             IF (para_env%mepos == 0) THEN

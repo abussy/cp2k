@@ -71,7 +71,7 @@ MODULE hfx_ri_kp
                                               kpoint_type
    USE libint_2c_3c,                    ONLY: cutoff_screen_factor
    USE machine,                         ONLY: m_flush,&
-                                              m_walltime
+                                              m_walltime, m_memory
    USE mathlib,                         ONLY: erfc_cutoff
    USE message_passing,                 ONLY: mp_cart_type,&
                                               mp_para_env_type,&
@@ -120,13 +120,6 @@ MODULE hfx_ri_kp
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'hfx_ri_kp'
 CONTAINS
-
-! NOTES: for a start, we do not seek performance, but accuracy. So in this first implementation,
-!        we give little consideration to batching, load balance and such.
-!        We also put everything here, even if there is some code replication with the original RI_HFX
-!        We will only work in the RHO flavor
-!        For now, we will also always assume that there is a single para_env, and that there is no
-!        K-point subgroup. This might change in the future
 
 ! **************************************************************************************************
 !> \brief I_1nitialize the ri_data for K-point. For now, we take the normal, usual existing ri_data
@@ -408,6 +401,39 @@ CONTAINS
    END SUBROUTINE cleanup_kp
 
 ! **************************************************************************************************
+!> \brief Prints a progress bar for the k-point RI-HFX triple loop
+! **************************************************************************************************
+   SUBROUTINE print_progress_bar(b_img, nimg, iprint, ri_data)
+      INTEGER, INTENT(IN)                                :: b_img, nimg   
+      INTEGER, INTENT(INOUT)                             :: iprint
+      TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+
+      INTEGER                                            :: rep
+      CHARACTER(LEN=default_string_length)               :: bar
+      
+      IF (ri_data%unit_nr > 0) THEN
+         IF (b_img == 1) THEN
+            WRITE(ri_data%unit_nr, '(/T6,A)', advance="no") '[-'
+            CALL m_flush(ri_data%unit_nr)
+         END IF
+         IF (b_img > iprint*nimg/71) THEN
+            rep = MAX(1, 71/nimg)
+            bar = repeat("-", rep)
+            WRITE(ri_data%unit_nr, '(A)', advance="no") trim(bar)
+            CALL m_flush(ri_data%unit_nr)
+            iprint = iprint + 1
+         END IF
+         IF (b_img == nimg) THEN
+            rep = MAX(0, 1 + 71 - iprint*rep)
+            bar = repeat("-", rep)
+            WRITE(ri_data%unit_nr, '(A,A)') trim(bar), '-]'
+            CALL m_flush(ri_data%unit_nr)
+         END IF
+      END IF
+
+   END SUBROUTINE print_progress_bar
+
+! **************************************************************************************************
 !> \brief Update the KS matrices for each real-space image
 !> \param qs_env ...
 !> \param ri_data ...
@@ -433,16 +459,15 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ri_update_ks_kp'
 
       INTEGER :: b_img, batch_size, group_size, handle, handle2, i_batch, i_img, i_spin, iatom, &
-         iblk, igroup, jatom, mb_img, n_batch_nze, natom, ngroups, nimg, nimg_nze, iprint, rep
-      INTEGER(int_8)                                     :: nflop, nze
+         iblk, igroup, jatom, mb_img, n_batch_nze, natom, ngroups, nimg, nimg_nze, iprint, n_nze
+      INTEGER(int_8)                                     :: nflop, nze, mem, max_mem
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: batch_ranges_at, batch_ranges_nze, &
                                                             idx_to_at_AO
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: iapc_pairs
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: sparsity_pattern
-      LOGICAL                                            :: use_delta_p
+      LOGICAL                                            :: use_delta_p, print_progress, estimate_mem
       REAL(dp)                                           :: etmp, fac, occ, pfac, pref, t1, t2, t3, &
                                                             t4
-      CHARACTER(LEN=default_string_length)               :: bar
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_sub
       TYPE(dbcsr_type)                                   :: ks_desymm, rho_desymm, tmp
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:)        :: mat_2c_pot
@@ -451,9 +476,9 @@ CONTAINS
                                                             t_3c_int, t_3c_work_2, t_3c_work_3
       TYPE(dbt_type), ALLOCATABLE, DIMENSION(:, :)       :: ks_t, ks_t_sub, t_3c_apc, t_3c_apc_sub
       TYPE(mp_para_env_type), POINTER                    :: para_env, para_env_sub
-      TYPE(section_vals_type), POINTER                   :: hfx_section
+      TYPE(section_vals_type), POINTER                   :: hfx_section, print_section
 
-      NULLIFY (para_env, para_env_sub, blacs_env_sub, hfx_section, dbcsr_template)
+      NULLIFY (para_env, para_env_sub, blacs_env_sub, hfx_section, dbcsr_template, print_section)
 
       CALL cite_reference(Bussy2024)
 
@@ -503,6 +528,19 @@ CONTAINS
       pfac = -1.0_dp
       IF (.NOT. use_delta_p) pfac = 0.0_dp
       CALL get_pmat_images(ri_data%rho_ao_t, rho_ao, pfac, ri_data, qs_env)
+
+      n_nze = 0
+      DO i_img = 1, nimg
+         DO i_spin = 1, nspins
+            CALL get_tensor_occupancy(ri_data%rho_ao_t(i_spin, i_img), nze, occ)
+            IF (nze > 0) THEN
+               n_nze = n_nze + 1
+            END IF
+         END DO
+      END DO
+      IF (n_nze == nspins) THEN
+         CPWARN("It is highly recommended to restart from a converged GGA K-point calculations.")
+      END IF
 
       ALLOCATE (ks_t(nspins, nimg))
       DO i_img = 1, nimg
@@ -577,47 +615,63 @@ CONTAINS
       DO i_batch = 1, n_batch_nze
          batch_ranges_nze(i_batch) = (i_batch - 1)*batch_size + 1
       END DO
-      batch_ranges_nze(n_batch_nze + 1) = nimg_nze + 1
+      batch_ranges_nze(n_batch_nze + 1) = nimg_nze + 1 
+
+      !TODO: measure memory usage here and add an estimate on t_3c_work*ngroups
+      !      or mayve do that even before splitting to subgroups
+
+      print_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%HF%RI%PRINT")
+      CALL section_vals_val_get(print_section, "KP_RI_PROGRESS_BAR", l_val=print_progress)
+      CALL section_vals_val_get(print_section, "KP_RI_MEMORY_ESTIMATE", l_val=estimate_mem)
+
+      ALLOCATE (iapc_pairs(nimg, 2))
+      IF (estimate_mem) THEN
+         !Populate work tensors to simulate maximum usage
+         CALL get_iapc_pairs(iapc_pairs, 1, ri_data, qs_env)
+         CALL fill_3c_stack(t_3c_work_3(1), t_3c_int, iapc_pairs(:, 1), 3, ri_data, &
+                            filter_at=1, filter_dim=2, idx_to_at=idx_to_at_AO, &
+                            img_bounds=[batch_ranges_nze(1), batch_ranges_nze(2)])
+         CALL fill_3c_stack(t_3c_work_2(1), t_3c_apc_sub(1, :), iapc_pairs(:, 2), 3, &
+                            ri_data, filter_at=1, filter_dim=1, idx_to_at=idx_to_at_AO, &
+                            img_bounds=[batch_ranges_nze(1), batch_ranges_nze(2)])
+         CALL fill_3c_stack(t_3c_work_2(2), t_3c_apc_sub(1, :), iapc_pairs(:, 2), 3, &
+                            ri_data, filter_at=1, filter_dim=1, idx_to_at=idx_to_at_AO, &
+                            img_bounds=[batch_ranges_nze(1), batch_ranges_nze(2)])
+         CALL get_ext_2c_int(t_2c_work(1), mat_2c_pot, 1, 1, 1, ri_data, qs_env, &
+                             blacs_env_ext=blacs_env_sub, para_env_ext=para_env_sub, &
+                             dbcsr_template=dbcsr_template)
+         CALL m_memory(mem)
+         CALL para_env%max(mem)
+         CALL dbt_clear(t_3c_work_2(1))
+         CALL dbt_clear(t_3c_work_2(2))
+         CALL dbt_clear(t_3c_work_3(1))
+         CALL dbt_clear(t_2c_work(1))
+
+         IF (ri_data%unit_nr > 0) THEN
+            WRITE (ri_data%unit_nr, FMT="(/T3,A,I14)") &
+            "KP-HFX_RI_INFO| Estimated peak memory usage per MPI rank (MiB):", mem/(1024 * 1024)
+            CALL m_flush(ri_data%unit_nr)
+         END IF
+      END IF
 
       CALL dbt_batched_contract_init(t_3c_work_3(1), batch_range_2=batch_ranges_at)
       CALL dbt_batched_contract_init(t_3c_work_3(2), batch_range_2=batch_ranges_at)
       CALL dbt_batched_contract_init(t_3c_work_2(1), batch_range_1=batch_ranges_at)
       CALL dbt_batched_contract_init(t_3c_work_2(2), batch_range_1=batch_ranges_at)
 
-      !TODO: measure memory usage here and add an estimate on t_3c_work*ngroups
-      !      or mayve do that even before splitting to subgroups
-
+      max_mem = 0
       iprint = 1
       t1 = m_walltime()
       ri_data%kp_cost(:, :, :) = 0.0_dp
-      ALLOCATE (iapc_pairs(nimg, 2))
       DO b_img = 1, nimg
-         !TODO: make it optional with a keyword
-         IF (ri_data%unit_nr > 0) THEN
-            IF (b_img == 1) THEN
-               WRITE(ri_data%unit_nr, '(/T6,A)', advance="no") '[-'
-            END IF
-            IF (b_img > iprint*nimg/71) THEN
-               rep = MAX(1, 71/nimg)
-               bar = repeat("-", rep)
-               WRITE(ri_data%unit_nr, '(A)', advance="no") trim(bar)
-               CALL m_flush(ri_data%unit_nr)
-               iprint = iprint + 1
-            END IF
-            IF (b_img == nimg) THEN
-               rep = MAX(0, 1 + 71 - iprint*rep)
-               bar = repeat("-", rep)
-               WRITE(ri_data%unit_nr, '(A,A)') trim(bar), '-]'
-               CALL m_flush(ri_data%unit_nr)
-            END IF
-         END IF
+         IF (print_progress) CALL print_progress_bar(b_img, nimg, iprint, ri_data) 
          CALL dbt_batched_contract_init(ks_t_split(1))
          CALL dbt_batched_contract_init(ks_t_split(2))
-         DO jatom = 1, natom
+         DO jatom = 1, natom 
             DO iatom = 1, natom
                IF (.NOT. sparsity_pattern(iatom, jatom, b_img) == igroup) CYCLE
                pref = 1.0_dp
-               IF (iatom == jatom .AND. b_img == 1) pref = 0.5_dp
+               IF (iatom == jatom .AND. b_img == 1) pref = 0.5_dp 
 
                !measure the cost of the given i, j, b configuration
                t3 = m_walltime()
@@ -658,6 +712,10 @@ CONTAINS
                                         ri_data, filter_at=iatom, filter_dim=1, idx_to_at=idx_to_at_AO, &
                                         img_bounds=[batch_ranges_nze(i_batch), batch_ranges_nze(i_batch + 1)])
                      CALL get_tensor_occupancy(t_3c_work_2(3), nze, occ)
+
+                     CALL m_memory(mem)
+                     max_mem = MAX(mem, max_mem) 
+
                      IF (nze == 0) CYCLE
                      CALL dbt_copy(t_3c_work_2(3), t_3c_work_2(1), move_data=.TRUE.)
                      CALL dbt_contract(-pref*fac, t_3c_work_2(1), t_3c_work_2(2), &
@@ -674,7 +732,7 @@ CONTAINS
 
                t4 = m_walltime()
                ri_data%kp_cost(iatom, jatom, b_img) = t4 - t3
-            END DO !iatom
+            END DO !iatom 
          END DO !jatom
          CALL dbt_batched_contract_finalize(ks_t_split(1))
          CALL dbt_batched_contract_finalize(ks_t_split(2))
@@ -780,6 +838,12 @@ CONTAINS
       CALL dbcsr_release(ks_desymm)
       CALL dbcsr_release(tmp)
       CALL dbt_destroy(t_2c_ao_tmp(1))
+
+      CALL para_env%max(max_mem)
+      IF (ri_data%unit_nr > 0 ) THEN
+         WRITE(ri_data%unit_nr, '(A,I8)') "Max measured memory usage: ", max_mem/(1024 * 1024)
+         CALL m_flush(ri_data%unit_nr)
+      END IF
 
       CALL timestop(handle)
 
@@ -1980,9 +2044,9 @@ CONTAINS
                CALL dbt_copy_matrix_to_tensor(rho_desymm(i_spin, mi_img)%matrix, tmp)
                CALL dbt_copy(tmp, rho_ao_t(i_spin, i_img), order=[2, 1], summation=.TRUE., move_data=.TRUE.)
             END IF
-            CALL dbt_filter(rho_ao_t(i_spin, i_img), ri_data%filter_eps)
+            CALL dbt_filter(rho_ao_t(i_spin, i_img), ri_data%filter_eps) 
          END DO
-      END DO
+      END DO 
 
       DO i_img = 1, nimg
          DO i_spin = 1, nspins
@@ -2371,10 +2435,6 @@ CONTAINS
 
       batch_size = ri_data%kp_stack_size
 
-      !TEST: filter out some apc_img
-      !TODO: does it help with large systems like Michelle's?
-      !      Go ahead and measure memory usage during this routine, with and without this filter
-      !      This seems to be fast and correct at least
       ALLOCATE(apc_filter(nimg), iapc_pairs(nimg, 2))
       apc_filter = 0
       DO b_img = 1, nimg
@@ -2447,8 +2507,6 @@ CONTAINS
                CALL dbt_batched_contract_finalize(rho_stack(2))
                CALL dbt_copy(res_stack(2), res_stack(1), move_data=.TRUE.)
 
-               !TODO: do we really need to populate all apc_img? Are they all needed?
-               !      maybe loop over b_img and i_img < nimg_nze, and see if some apc_img not used
                DO apc_img = batch_ranges_img(i_batch), batch_ranges_img(i_batch + 1) - 1
                   !Destack the resulting tensor and put it in t_3c_apc with correct apc_img
                   IF (apc_filter(apc_img) == 0) CYCLE
@@ -4257,6 +4315,7 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(section_vals_type), POINTER                   :: hfx_section
+      CHARACTER(LEN=512)                                 :: warning_msg
 
       NULLIFY (qs_kind_set, dist_2d, nl_2c, nl_iterator, dft_control, &
                particle_set, kpoints, para_env, cell_to_index, hfx_section)
@@ -4280,10 +4339,15 @@ CONTAINS
 
       !In case of shortrange HFX potential, it is imprtant to be consistent with the rest of the KP
       !code, and use EPS_SCHWARZ to determine the range (rather than eps_filter_2c in normal RI-HFX)
-      !TODO: print warning against using SHORTRANGE for performance reasons? (suggest TC instead)
       IF (ri_data%hfx_pot%potential_type == do_potential_short) THEN
          CALL erfc_cutoff(ri_data%eps_schwarz, ri_data%hfx_pot%omega, ri_data%hfx_pot%cutoff_radius)
+         Write (warning_msg, '(A)') & 
+            "The SHORTANGE HFX potential typically extends over many periodic images, " // &
+            "possibly slowing down the calculation. Consider using the TRUNCATED " // &
+            "potential for better computational performance."
+         CPWARN(warning_msg)
       END IF
+      
 
       !Determine the range for contributing periodic images, and for the RI basis extension
       ri_data%kp_RI_range = 0.0_dp
@@ -4410,10 +4474,11 @@ CONTAINS
       END DO
 
       !Print some info
-      !TODO: print stack size
       IF (ri_data%unit_nr > 0) THEN
          WRITE (ri_data%unit_nr, FMT="(/T3,A,I29)") &
             "KP-HFX_RI_INFO| Number of RI-KP parallel groups:", ngroups
+         WRITE (ri_data%unit_nr, FMT="(T3,A,I29)") &
+            "KP-HFX_RI_INFO| Tensor stack size:              ", ri_data%kp_stack_size
          WRITE (ri_data%unit_nr, FMT="(T3,A,F31.3,A)") &
             "KP-HFX_RI_INFO| RI basis extension radius:", ri_data%kp_RI_range*angstrom, " Ang"
          WRITE (ri_data%unit_nr, FMT="(T3,A,F12.3,A, F6.3, A)") &

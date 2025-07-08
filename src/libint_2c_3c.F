@@ -396,8 +396,8 @@ CONTAINS
             ALLOCATE (Fm(prim_data_f_size))
             CALL fgamma(params%m_max, T, Fm)
             DO l = 1, params%m_max + 1
-               params%Fm(l) = params%Fm(l) + Fm(l)* &
-                              (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) &
+               params%Fm(l) = params%Fm(l) &
+                              * (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) &
                               - Fm(l)*potential_parameter%scale_longrange
             END DO
             DEALLOCATE(Fm)
@@ -882,7 +882,8 @@ CONTAINS
       dr_ab = 0.0_dp
 
       IF (potential_parameter%potential_type == do_potential_truncated .OR. &
-          potential_parameter%potential_type == do_potential_short) THEN
+          potential_parameter%potential_type == do_potential_short .OR. &
+          potential_parameter%potential_type == do_potential_mix_cl_trunc) THEN
          dr_ab = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (potential_parameter%potential_type == do_potential_coulomb) THEN
          dr_ab = 1000000.0_dp
@@ -1018,8 +1019,8 @@ CONTAINS
          ALLOCATE (Fm(prim_data_f_size))
          CALL fgamma(params%m_max, T, Fm)
          DO l = 1, params%m_max + 1
-            params%Fm(l) = params%Fm(l) + Fm(l)* &
-                           (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) &
+            params%Fm(l) = params%Fm(l) &
+                           * (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) &
                            - Fm(l)*potential_parameter%scale_longrange
          END DO
          DEALLOCATE(Fm)
@@ -1131,7 +1132,8 @@ CONTAINS
       dr_ab = 0.0_dp
 
       IF (potential_parameter%potential_type == do_potential_truncated .OR. &
-          potential_parameter%potential_type == do_potential_short) THEN
+          potential_parameter%potential_type == do_potential_short .OR. &
+          potential_parameter%potential_type == do_potential_mix_cl_trunc) THEN
          dr_ab = potential_parameter%cutoff_radius*cutoff_screen_factor
       ELSEIF (potential_parameter%potential_type == do_potential_coulomb) THEN
          dr_ab = 1000000.0_dp
@@ -1270,8 +1272,8 @@ CONTAINS
          ALLOCATE (Fm(prim_data_f_size))
          CALL fgamma(params%m_max, T, Fm)
          DO l = 1, params%m_max + 1
-            params%Fm(l) = params%Fm(l) + Fm(l)* &
-                           (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) &
+            params%Fm(l) = params%Fm(l) &
+                           * (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) &
                            - Fm(l)*potential_parameter%scale_longrange
          END DO
          DEALLOCATE(Fm)

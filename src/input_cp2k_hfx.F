@@ -735,6 +735,31 @@ CONTAINS
                           description="Section of possible print options in the RI-HFX code.", &
                           n_keywords=0, n_subsections=1, repeats=.FALSE.)
 
+      CALL keyword_create(keyword, __LOCATION__, name="KP_RI_PROGRESS_BAR", &
+                          variants=s2a("PROGRESS_BAR", "PROGRESS", "KP_PROGRESS", "KP_PROGRESS_BAR"), &
+                          description="Whether a progress bar for individual SCF steps should be printed."// &
+                                      "In RI-HFXk, an expensive triple loop runs over periodic images and "// &
+                                      "atomic pairs. This printing option tracks the progress of this loop "// &
+                                      "in real time. Note that some work also takes place before the loop "// &
+                                      "starts, and the time spent doing it depends on the value of "// &
+                                      "KP_STACK_SIZE (larger = faster, but more memory used). Calculations "// &
+                                      "involving forces require more memory than this estimate.", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="KP_RI_MEMORY_ESTIMATE", &
+                          variants=s2a("MEMORY_ESTIMATE"), &
+                          description="Calculate and print a rough upper bound estimate of the memory "// &
+                                      "required to run a RI-HFXk ENERGY calculation. Note that a fair "// &
+                                      "amount of computing must take place before this estimate can be "// &
+                                      "produced. If the calculation runs out of memory beforehand, "// &
+                                      "use more resources, or change the value of memory related keywords "// &
+                                      "(e.g. KP_NGROUPS, interaction potential parameters, KP_STACK_SIZE). ", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
       CALL cp_print_key_section_create(print_key, __LOCATION__, "RI_INFO", &
                                        description="Controls the printing of DBCSR tensor log in RI HFX.", &
                                        print_level=high_print_level, add_last=add_last_numeric, filename="__STD_OUT__")
