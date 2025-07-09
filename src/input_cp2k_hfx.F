@@ -742,12 +742,12 @@ CONTAINS
                                       "atomic pairs. This printing option tracks the progress of this loop "// &
                                       "in real time. Note that some work also takes place before the loop "// &
                                       "starts, and the time spent doing it depends on the value of "// &
-                                      "KP_STACK_SIZE (larger = faster, but more memory used). Calculations "// &
-                                      "involving forces require more memory than this estimate.", &
+                                      "KP_STACK_SIZE (larger = faster, but more memory used).", &
                           default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)
 
+      !TODO: add a incentive to restart from GGA calculation? Test that it improves things
       CALL keyword_create(keyword, __LOCATION__, name="KP_RI_MEMORY_ESTIMATE", &
                           variants=s2a("MEMORY_ESTIMATE"), &
                           description="Calculate and print a rough upper bound estimate of the memory "// &
@@ -755,7 +755,8 @@ CONTAINS
                                       "amount of computing must take place before this estimate can be "// &
                                       "produced. If the calculation runs out of memory beforehand, "// &
                                       "use more resources, or change the value of memory related keywords "// &
-                                      "(e.g. KP_NGROUPS, interaction potential parameters, KP_STACK_SIZE). ", &
+                                      "(e.g. KP_NGROUPS, interaction potential parameters, KP_STACK_SIZE). "// &
+                                      "Calculations involving forces will require more memory than this estimate.", &
                           default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)

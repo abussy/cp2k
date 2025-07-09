@@ -625,7 +625,7 @@ CONTAINS
       CALL section_vals_val_get(print_section, "KP_RI_MEMORY_ESTIMATE", l_val=estimate_mem)
 
       ALLOCATE (iapc_pairs(nimg, 2))
-      IF (estimate_mem) THEN
+      IF (estimate_mem .AND. geometry_did_change) THEN
          !Populate work tensors to simulate maximum usage
          CALL get_iapc_pairs(iapc_pairs, 1, ri_data, qs_env)
          CALL fill_3c_stack(t_3c_work_3(1), t_3c_int, iapc_pairs(:, 1), 3, ri_data, &
@@ -647,8 +647,9 @@ CONTAINS
          CALL dbt_clear(t_3c_work_3(1))
          CALL dbt_clear(t_2c_work(1))
 
+         !TODO: print that once only, not at each SCF.
          IF (ri_data%unit_nr > 0) THEN
-            WRITE (ri_data%unit_nr, FMT="(/T3,A,I14)") &
+            WRITE (ri_data%unit_nr, FMT="(T3,A,I14)") &
             "KP-HFX_RI_INFO| Estimated peak memory usage per MPI rank (MiB):", mem/(1024 * 1024)
             CALL m_flush(ri_data%unit_nr)
          END IF

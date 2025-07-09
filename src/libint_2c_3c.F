@@ -796,9 +796,9 @@ CONTAINS
             ALLOCATE (Fm(prim_data_f_size))
             CALL fgamma(params%m_max, T, Fm)
             DO l = 1, params%m_max + 1
-               params%Fm(l) = params%Fm(l) + Fm(l)* &
-                              (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) &
-                              - Fm(l)*potential_parameter%scale_longrange
+               params%Fm(l) = params%Fm(l) &
+                             * (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) &
+                             - Fm(l)*potential_parameter%scale_longrange
             END DO
             DEALLOCATE(Fm)
 
