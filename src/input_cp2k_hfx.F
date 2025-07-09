@@ -756,6 +756,7 @@ CONTAINS
                                       "produced. If the calculation runs out of memory beforehand, "// &
                                       "use more resources, or change the value of memory related keywords "// &
                                       "(e.g. KP_NGROUPS, interaction potential parameters, KP_STACK_SIZE). "// &
+                                      "The estimate is more accurate when restarting from a (GGA) wavefunction. "// &
                                       "Calculations involving forces will require more memory than this estimate.", &
                           default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(subsection, keyword)
