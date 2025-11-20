@@ -161,6 +161,7 @@ MODULE force_env_methods
    USE restraint,                       ONLY: restraint_control
    USE scine_utils,                     ONLY: write_scine
    USE string_utilities,                ONLY: compress
+   USE vab,                             ONLY: calculate_vab
    USE virial_methods,                  ONLY: write_stress_components
    USE virial_types,                    ONLY: cp_virial,&
                                               sym_virial,&
@@ -899,7 +900,7 @@ CONTAINS
                                                             jparticle, mixing_type, my_group, &
                                                             natom, nforce_eval, source, unit_nr
       INTEGER, DIMENSION(:), POINTER                     :: glob_natoms, itmplist, map_index
-      LOGICAL                                            :: dip_exists
+      LOGICAL                                            :: dip_exists, do_vab
       REAL(KIND=dp)                                      :: coupling_parameter, dedf, der_1, der_2, &
                                                             dx, energy, err, lambda, lerr, &
                                                             restraint_strength, restraint_target, &
@@ -918,7 +919,7 @@ CONTAINS
       TYPE(particle_list_type), POINTER                  :: particles_mix
       TYPE(section_vals_type), POINTER                   :: force_env_section, gen_section, &
                                                             mapping_section, mixed_section, &
-                                                            root_section
+                                                            root_section, vab_section
       TYPE(virial_p_type), DIMENSION(:), POINTER         :: virials
       TYPE(virial_type), POINTER                         :: loc_virial, virial_mix
 
@@ -1177,6 +1178,16 @@ CONTAINS
       CASE DEFAULT
          CPABORT("")
       END SELECT
+
+      ! Call to VAB Calculation
+      do_vab = .FALSE.
+      vab_section => section_vals_get_subs_vals(mixed_section, "VAB")
+      CALL section_vals_val_get(vab_section, "DO_VAB", l_val=do_vab)
+      IF(do_vab) THEN
+         CALL calculate_vab(force_env)
+      END IF
+      ! End call to VAB Calculation      
+
       !Simply deallocate and loose the pointer references..
       DO iforce_eval = 1, nforce_eval
          DEALLOCATE (global_forces(iforce_eval)%forces)

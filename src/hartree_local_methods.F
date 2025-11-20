@@ -208,7 +208,7 @@ CONTAINS
 !>      05.2012 JGH refactoring
 !> \author ??
 ! **************************************************************************************************
-   SUBROUTINE Vh_1c_gg_integrals(qs_env, energy_hartree_1c, ecoul_1c, local_rho_set, para_env, tddft)
+   SUBROUTINE Vh_1c_gg_integrals(qs_env, energy_hartree_1c, ecoul_1c, local_rho_set, para_env, tddft, calls)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       REAL(kind=dp), INTENT(out)                         :: energy_hartree_1c
@@ -216,13 +216,14 @@ CONTAINS
       TYPE(local_rho_type), POINTER                      :: local_rho_set
       TYPE(cp_para_env_type), POINTER                    :: para_env
       LOGICAL, INTENT(IN)                                :: tddft
+      INTEGER, OPTIONAL                                  :: calls
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'Vh_1c_gg_integrals', &
          routineP = moduleN//':'//routineN
 
       INTEGER :: bo(2), handle, iat, iatom, ikind, ipgf1, is1, iset1, iso, l_ang, llmax, lmax0, &
          lmax_0, m1, max_iso, max_iso_not0, max_s_harm, maxl, maxso, mepos, n1, nat, natom, &
-         nchan_0, nkind, nr, nset, nsotot, nspins, num_pe
+         nchan_0, nkind, nr, nset, nsotot, nspins, num_pe, call_i
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: cg_n_list
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: cg_list
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, lmax, lmin, npgf
@@ -253,7 +254,8 @@ CONTAINS
       TYPE(rhoz_type), DIMENSION(:), POINTER             :: rhoz_set
 
       CALL timeset(routineN, handle)
-
+      call_i = 2
+      IF(PRESENT(calls)) call_i = calls
       NULLIFY (cell, dft_control, poisson_env, pw_env, qs_charges)
       NULLIFY (atomic_kind_set, qs_kind_set, rho_atom_set, rho0_atom_set)
       NULLIFY (rho0_mpole, rhoz_set)
@@ -384,7 +386,7 @@ CONTAINS
                rho_atom => rho_atom_set(iatom)
 
                NULLIFY (rrad_z, vrrad_z, rrad_0, vrrad_0)
-               IF (core_charge) THEN
+               IF (core_charge .AND. (call_i .EQ. 2 .OR. call_i .EQ. 3)) THEN
                   rrad_z => rhoz_set(ikind)%r_coef
                   vrrad_z => rhoz_set(ikind)%vr_coef
                END IF
@@ -398,13 +400,13 @@ CONTAINS
 
                CALL Vh_1c_atom_potential(rho_atom, vrrad_0, &
                                          grid_atom, core_charge, vrrad_z, Vh1_h, Vh1_s, &
-                                         nchan_0, nspins, max_iso_not0, factor)
+                                         nchan_0, nspins, max_iso_not0, factor, call_i)
 
                CALL Vh_1c_atom_energy(energy_hartree_1c, ecoul_1c, rho_atom, rrad_0, &
                                       grid_atom, iatom, core_charge, rrad_z, Vh1_h, Vh1_s, &
-                                      nchan_0, nspins, max_iso_not0, atenergy, atprop%ate1c)
+                                      nchan_0, nspins, max_iso_not0, atenergy, atprop%ate1c, call_i)
 
-               CALL Vh_1c_atom_integrals(rho_atom, &
+               IF(call_i .EQ. 2) CALL Vh_1c_atom_integrals(rho_atom, &
                                          aVh1b_hh, aVh1b_ss, aVh1b_00, Vh1_h, Vh1_s, max_iso_not0, &
                                          max_s_harm, llmax, cg_list, cg_n_list, &
                                          nset, npgf, lmin, lmax, nsotot, maxso, nspins, nchan_0, gsph, g0_h_w, my_CG, Qlm_gg)
@@ -451,7 +453,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE Vh_1c_atom_potential(rho_atom, vrrad_0, &
                                    grid_atom, core_charge, vrrad_z, Vh1_h, Vh1_s, &
-                                   nchan_0, nspins, max_iso_not0, bfactor)
+                                   nchan_0, nspins, max_iso_not0, bfactor, calls)
 
       TYPE(rho_atom_type), POINTER                       :: rho_atom
       REAL(dp), DIMENSION(:, :), POINTER                 :: vrrad_0
@@ -461,13 +463,16 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), POINTER                 :: Vh1_h, Vh1_s
       INTEGER, INTENT(IN)                                :: nchan_0, nspins, max_iso_not0
       REAL(dp), INTENT(IN)                               :: bfactor
+      INTEGER, OPTIONAL                                  :: calls
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'Vh_1c_atom_potential', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: ir, iso, ispin, nr
+      INTEGER                                            :: ir, iso, ispin, nr, call_i
       TYPE(rho_atom_coeff), DIMENSION(:), POINTER        :: vr_h, vr_s
-
+   
+      call_i = 2
+      IF(PRESENT(calls)) call_i = calls
       nr = grid_atom%nr
 
       NULLIFY (vr_h, vr_s)
@@ -476,19 +481,20 @@ CONTAINS
       Vh1_h = 0.0_dp
       Vh1_s = 0.0_dp
 
-      IF (core_charge) Vh1_h(:, 1) = vrrad_z(:)
+      IF (core_charge .AND. (call_i .EQ. 2 .OR. call_i .EQ. 3)) Vh1_h(:, 1) = vrrad_z(:)
 
       DO iso = 1, nchan_0
          Vh1_s(:, iso) = vrrad_0(:, iso)
       END DO
-
-      DO ispin = 1, nspins
-         DO iso = 1, max_iso_not0
-            Vh1_h(:, iso) = Vh1_h(:, iso) + vr_h(ispin)%r_coef(:, iso)
-            Vh1_s(:, iso) = Vh1_s(:, iso) + vr_s(ispin)%r_coef(:, iso)
-         END DO
-      END DO
-
+      
+      IF(call_i .NE. 3) THEN
+        DO ispin = 1, nspins
+           DO iso = 1, max_iso_not0
+              Vh1_h(:, iso) = Vh1_h(:, iso) + vr_h(ispin)%r_coef(:, iso)
+              Vh1_s(:, iso) = Vh1_s(:, iso) + vr_s(ispin)%r_coef(:, iso)
+           END DO
+        END DO
+      END IF
       IF (bfactor /= 0._dp) THEN
          DO ir = 1, nr
             Vh1_h(ir, 1) = Vh1_h(ir, 1) + bfactor*grid_atom%rad2(ir)*grid_atom%wr(ir)
@@ -520,7 +526,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE Vh_1c_atom_energy(energy_hartree_1c, ecoul_1c, rho_atom, rrad_0, &
                                 grid_atom, iatom, core_charge, rrad_z, Vh1_h, Vh1_s, &
-                                nchan_0, nspins, max_iso_not0, atenergy, ate1c)
+                                nchan_0, nspins, max_iso_not0, atenergy, ate1c, calls)
 
       REAL(dp), INTENT(INOUT)                            :: energy_hartree_1c
       TYPE(ecoul_1center_type), DIMENSION(:), POINTER    :: ecoul_1c
@@ -534,14 +540,18 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: nchan_0, nspins, max_iso_not0
       LOGICAL, INTENT(IN)                                :: atenergy
       REAL(dp), DIMENSION(:), POINTER                    :: ate1c
+      INTEGER, OPTIONAL                                  :: calls
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'Vh_1c_atom_energy', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: iso, ispin, nr
+      INTEGER                                            :: iso, ispin, nr, call_i
       REAL(dp)                                           :: ecoul_1_0, ecoul_1_h, ecoul_1_s, &
                                                             ecoul_1_z
       TYPE(rho_atom_coeff), DIMENSION(:), POINTER        :: r_h, r_s
+      
+      call_i = 2
+      IF(PRESENT(calls)) call_i = calls
 
       nr = grid_atom%nr
 
@@ -550,7 +560,7 @@ CONTAINS
 
       !       Calculate the contributions to Ecoul coming from Vh1_h*rhoz
       ecoul_1_z = 0.0_dp
-      IF (core_charge) THEN
+      IF (core_charge .AND. (call_i .EQ. 2 .OR. call_i .EQ. 3)) THEN
          ecoul_1_z = 0.5_dp*SUM(Vh1_h(:, 1)*rrad_z(:)*grid_atom%wr(:))
       END IF
 
@@ -563,12 +573,14 @@ CONTAINS
       !       Calculate the contributions to Ecoul coming from Vh1_h*rho1_h and Vh1_s*rho1_s
       ecoul_1_s = 0.0_dp
       ecoul_1_h = 0.0_dp
-      DO ispin = 1, nspins
-         DO iso = 1, max_iso_not0
-            ecoul_1_s = ecoul_1_s + 0.5_dp*SUM(Vh1_s(:, iso)*r_s(ispin)%r_coef(:, iso)*grid_atom%wr(:))
-            ecoul_1_h = ecoul_1_h + 0.5_dp*SUM(Vh1_h(:, iso)*r_h(ispin)%r_coef(:, iso)*grid_atom%wr(:))
-         END DO
-      END DO
+      IF (call_i .NE. 3) THEN
+        DO ispin = 1, nspins
+           DO iso = 1, max_iso_not0
+              ecoul_1_s = ecoul_1_s + 0.5_dp*SUM(Vh1_s(:, iso)*r_s(ispin)%r_coef(:, iso)*grid_atom%wr(:))
+              ecoul_1_h = ecoul_1_h + 0.5_dp*SUM(Vh1_h(:, iso)*r_h(ispin)%r_coef(:, iso)*grid_atom%wr(:))
+           END DO
+        END DO
+      END IF
 
       CALL set_ecoul_1c(ecoul_1c, iatom, ecoul_1_z=ecoul_1_z, ecoul_1_0=ecoul_1_0)
       CALL set_ecoul_1c(ecoul_1c=ecoul_1c, iatom=iatom, ecoul_1_h=ecoul_1_h, ecoul_1_s=ecoul_1_s)

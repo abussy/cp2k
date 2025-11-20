@@ -1,0 +1,20 @@
+CC          = /home/bussya/Documents/git/cp2k/tools/toolchain/install/openmpi-5.0.8/bin/mpicc
+CXX         = /home/bussya/Documents/git/cp2k/tools/toolchain/install/openmpi-5.0.8/bin/mpicxx
+AR          = ar -r
+FC          = /home/bussya/Documents/git/cp2k/tools/toolchain/install/openmpi-5.0.8/bin/mpifort
+LD          = /home/bussya/Documents/git/cp2k/tools/toolchain/install/openmpi-5.0.8/bin/mpifort
+#
+DFLAGS      =  -D__parallel -D__SCALAPACK -D__FFTW3  -D__LIBINT -D__NO_IPI_DRIVER
+#
+WFLAGS      = -Werror=aliasing -Werror=ampersand -Werror=c-binding-type -Werror=intrinsic-shadow -Werror=intrinsics-std -Werror=line-truncation -Werror=tabs -Werror=target-lifetime -Werror=underflow -Werror=conversion -Werror=zerotrip -Wno-maybe-uninitialized -Wuninitialized -Wuse-without-only 
+#
+FCDEBFLAGS  = -fbacktrace -ffree-form -fimplicit-none -std=f2008 
+CFLAGS      = -fno-omit-frame-pointer -fopenmp -g -march=native -mtune=native  -O3 -funroll-loops $(PROFOPT)  -I'/home/bussya/Documents/git/cp2k/tools/toolchain/install/openmpi-5.0.8/include'  -I'/home/bussya/Documents/git/cp2k/tools/toolchain/install/openblas-0.3.30/include' -I'/home/bussya/Documents/git/cp2k/tools/toolchain/install/fftw-3.3.10/include' -I'/home/bussya/Documents/git/cp2k/tools/toolchain/install/libint-v2.6.0-cp2k-lmax-5/include'  -std=c17 -Wall -Wextra -Wno-vla-parameter -Wno-deprecated-declarations $(DFLAGS)
+CXXFLAGS    = -O2 -fPIC -fno-omit-frame-pointer -fopenmp -g -mtune=native -std=c++17 $(DFLAGS) -Wno-deprecated-declarations
+FCFLAGS     = -fno-omit-frame-pointer -fopenmp -g -march=native -mtune=native  -O3 -funroll-loops $(PROFOPT)  -I'/home/bussya/Documents/git/cp2k/tools/toolchain/install/openmpi-5.0.8/include'  -I'/home/bussya/Documents/git/cp2k/tools/toolchain/install/openblas-0.3.30/include' -I'/home/bussya/Documents/git/cp2k/tools/toolchain/install/fftw-3.3.10/include' -I'/home/bussya/Documents/git/cp2k/tools/toolchain/install/libint-v2.6.0-cp2k-lmax-5/include'  $(FCDEBFLAGS) $(WFLAGS) $(DFLAGS) -fallow-argument-mismatch
+#
+LDFLAGS     =  $(FCFLAGS) -Wl,--enable-new-dtags -L'/home/bussya/Documents/git/cp2k/tools/toolchain/install/openmpi-5.0.8/lib' -Wl,-rpath,'/home/bussya/Documents/git/cp2k/tools/toolchain/install/openmpi-5.0.8/lib'  -L'/home/bussya/Documents/git/cp2k/tools/toolchain/install/openblas-0.3.30/lib' -Wl,-rpath,'/home/bussya/Documents/git/cp2k/tools/toolchain/install/openblas-0.3.30/lib' -L'/home/bussya/Documents/git/cp2k/tools/toolchain/install/fftw-3.3.10/lib' -Wl,-rpath,'/home/bussya/Documents/git/cp2k/tools/toolchain/install/fftw-3.3.10/lib' -L'/home/bussya/Documents/git/cp2k/tools/toolchain/install/libint-v2.6.0-cp2k-lmax-5/lib' -L'/home/bussya/Documents/git/cp2k/tools/toolchain/install/scalapack-2.2.2/lib' -Wl,-rpath,'/home/bussya/Documents/git/cp2k/tools/toolchain/install/scalapack-2.2.2/lib'
+LDFLAGS_C   = 
+LIBS        = -lscalapack -lint2 -lfftw3_mpi -lfftw3 -lfftw3_omp   -lmpi  -l:libopenblas.a -lstdc++ -lstdc++
+#
+FYPPFLAGS   = -n --line-marker-format=gfortran5

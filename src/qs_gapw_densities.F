@@ -44,19 +44,20 @@ CONTAINS
 !> \param do_rho0 ...
 !> \param kind_set_external can be provided to use different projectors/grids/basis than the default
 ! **************************************************************************************************
-   SUBROUTINE prepare_gapw_den(qs_env, local_rho_set, do_rho0, kind_set_external)
+   SUBROUTINE prepare_gapw_den(qs_env, local_rho_set, do_rho0, kind_set_external, calls)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(local_rho_type), OPTIONAL, POINTER            :: local_rho_set
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_rho0
       TYPE(qs_kind_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: kind_set_external
+      INTEGER, OPTIONAL                                  :: calls
 
       CHARACTER(len=*), PARAMETER :: routineN = 'prepare_gapw_den', &
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: handle, ikind, ispin, natom, nspins, &
-                                                            output_unit
+                                                            output_unit, call_i
       INTEGER, DIMENSION(:), POINTER                     :: atom_list
       LOGICAL                                            :: extern, my_do_rho0, paw_atom
       REAL(dp)                                           :: rho0_h_tot, tot_rs_int
@@ -85,6 +86,9 @@ CONTAINS
       NULLIFY (rho_atom_set)
       NULLIFY (rho0_atom_set)
 
+      call_i = 2
+      IF(PRESENT(calls)) call_i = calls
+            
       my_do_rho0 = .TRUE.
       IF (PRESENT(do_rho0)) my_do_rho0 = do_rho0
 
@@ -128,14 +132,15 @@ CONTAINS
          CALL get_qs_kind(my_kind_set(ikind), paw_atom=paw_atom)
 
 !     Calculate rho1_h and rho1_s on the radial grids centered on the atomic position
-         IF (paw_atom) &
+         IF (paw_atom .AND. call_i .NE. 3) &
             CALL calculate_rho_atom(para_env, rho_atom_set, my_kind_set(ikind), &
                                     atom_list, natom, nspins, rho1_h_tot, rho1_s_tot)
 
 !     Calculate rho0_h and rho0_s on the radial grids centered on the atomic position
          IF (my_do_rho0) &
             CALL calculate_rho0_atom(gapw_control, rho_atom_set, rho0_atom_set, rho0_mpole, &
-                                     atom_list, natom, ikind, my_kind_set(ikind), rho0_h_tot)
+                                     atom_list, natom, ikind, my_kind_set(ikind), rho0_h_tot, &
+                                     calls=call_i)
 
       ENDDO
 

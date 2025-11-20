@@ -172,7 +172,7 @@ CONTAINS
 !> \param rho0_h_tot ...
 ! **************************************************************************************************
    SUBROUTINE calculate_rho0_atom(gapw_control, rho_atom_set, rho0_atom_set, &
-                                  rho0_mp, a_list, natom, ikind, qs_kind, rho0_h_tot)
+                                  rho0_mp, a_list, natom, ikind, qs_kind, rho0_h_tot, calls)
 
       TYPE(gapw_control_type), POINTER                   :: gapw_control
       TYPE(rho_atom_type), DIMENSION(:), POINTER         :: rho_atom_set
@@ -182,13 +182,14 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: natom, ikind
       TYPE(qs_kind_type), INTENT(IN)                     :: qs_kind
       REAL(dp), INTENT(INOUT)                            :: rho0_h_tot
+      INTEGER, OPTIONAL                                  :: calls
 
       CHARACTER(len=*), PARAMETER :: routineN = 'calculate_rho0_atom', &
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: handle, iat, iatom, ic, ico, ir, is, &
                                                             iso, ispin, l, lmax0, lshell, lx, ly, &
-                                                            lz, nr, nsotot, nspins
+                                                            lz, nr, nsotot, nspins, call_i
       LOGICAL                                            :: paw_atom
       REAL(dp)                                           :: sum1
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: cpc_ah, cpc_as
@@ -202,6 +203,9 @@ CONTAINS
       TYPE(rho_atom_type), POINTER                       :: rho_atom
 
       CALL timeset(routineN, handle)
+
+      call_i =2
+      IF(PRESENT(calls)) call_i = calls
 
       NULLIFY (mpole_gau)
       NULLIFY (mpole_rho)
@@ -223,10 +227,13 @@ CONTAINS
          iatom = a_list(iat)
          rho0_atom_set(iatom)%rho0_rad_h%r_coef = 0.0_dp
          rho0_mp%mp_rho(iatom)%Qlm_tot = 0.0_dp
-         rho0_mp%mp_rho(iatom)%Qlm_tot(1) = rho0_mp%mp_rho(iatom)%Qlm_z
+         !# Lippert, 1999 Eqn. [22], last term n_A^Z
+         IF(call_i .EQ. 2 .OR. call_i .EQ. 3) &
+           rho0_mp%mp_rho(iatom)%Qlm_tot(1) = rho0_mp%mp_rho(iatom)%Qlm_z
          rho0_mp%mp_rho(iatom)%Q0 = 0.0_dp
          rho0_mp%mp_rho(iatom)%Qlm_car = 0.0_dp
       ENDDO
+         !Q0 looks like zeroth multipole moment which is nothing but the total charge
 
       IF (.NOT. (.NOT. paw_atom .AND. gapw_control%nopaw_as_gpw)) THEN
          DO iat = 1, natom
@@ -243,10 +250,13 @@ CONTAINS
                cpc_ah = 0._dp
                ALLOCATE (cpc_as(nsotot, nsotot, nspins))
                cpc_as = 0._dp
-               DO ispin = 1, nspins
-                  CALL prj_scatter(cpc_h(ispin)%r_coef, cpc_ah(:, :, ispin), qs_kind)
-                  CALL prj_scatter(cpc_s(ispin)%r_coef, cpc_as(:, :, ispin), qs_kind)
-               END DO
+               IF(call_i .NE. 3) THEN
+               !# Lippert 1999, Eqn [22,23]
+                 DO ispin = 1, nspins
+                    CALL prj_scatter(cpc_h(ispin)%r_coef, cpc_ah(:, :, ispin), qs_kind)
+                    CALL prj_scatter(cpc_s(ispin)%r_coef, cpc_as(:, :, ispin), qs_kind)
+                 END DO
+               END IF
             END IF
 
             ! Total charge (hard-soft) at atom
@@ -264,15 +274,17 @@ CONTAINS
                IF (paw_atom) THEN
                   mpole_rho%Qlm_h(iso) = 0.0_dp
                   mpole_rho%Qlm_s(iso) = 0.0_dp
-
-                  DO ispin = 1, nspins
-                     mpole_rho%Qlm_h(iso) = mpole_rho%Qlm_h(iso) + &
-                                            trace_r_AxB(mpole_gau%Qlm_gg(:, :, iso), nsotot, &
-                                                        cpc_ah(:, :, ispin), nsotot, nsotot, nsotot)
-                     mpole_rho%Qlm_s(iso) = mpole_rho%Qlm_s(iso) + &
-                                            trace_r_AxB(mpole_gau%Qlm_gg(:, :, iso), nsotot, &
-                                                        cpc_as(:, :, ispin), nsotot, nsotot, nsotot)
-                  END DO ! ispin
+                  
+                  IF(call_i .NE. 3) THEN
+                    DO ispin = 1, nspins
+                       mpole_rho%Qlm_h(iso) = mpole_rho%Qlm_h(iso) + &
+                                              trace_r_AxB(mpole_gau%Qlm_gg(:, :, iso), nsotot, &
+                                                          cpc_ah(:, :, ispin), nsotot, nsotot, nsotot)
+                       mpole_rho%Qlm_s(iso) = mpole_rho%Qlm_s(iso) + &
+                                              trace_r_AxB(mpole_gau%Qlm_gg(:, :, iso), nsotot, &
+                                                          cpc_as(:, :, ispin), nsotot, nsotot, nsotot)
+                    END DO ! ispin
+                  END IF
 
                   mpole_rho%Qlm_tot(iso) = mpole_rho%Qlm_tot(iso) + &
                                            mpole_rho%Qlm_h(iso) - mpole_rho%Qlm_s(iso)

@@ -86,9 +86,13 @@ CONTAINS
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="PROPERTIES", &
                           description="This section is used to set up the PROPERTIES calculation.", &
-                          n_keywords=0, n_subsections=6, repeats=.FALSE.)
+                          n_keywords=0, n_subsections=7, repeats=.FALSE.)
 
       NULLIFY (subsection, keyword)
+
+      CALL create_moa_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
 
       CALL create_linres_section(subsection)
       CALL section_add_subsection(section, subsection)
@@ -1507,5 +1511,148 @@ CONTAINS
       CALL keyword_release(keyword)
 
    END SUBROUTINE create_stda_section
+
+! **************************************************************************************************
+!> \brief creates the section for Maximal Orbital Analysis
+!> \param section ...
+!> \author Pavan Behara
+! **************************************************************************************************
+   SUBROUTINE create_moa_section(section)
+      TYPE(section_type), POINTER                        :: section
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'create_moa_section', &
+         routineP = moduleN//':'//routineN
+
+      TYPE(keyword_type), POINTER                        :: keyword
+      TYPE(section_type), POINTER                        :: print_key
+
+      NULLIFY (keyword, print_key)
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create(section, __LOCATION__, "MOA", &
+                          description="To do Maximal Orbital Analysis", &
+                          n_keywords=9, n_subsections=0, repeats=.FALSE.)
+
+      CALL keyword_create(keyword, __LOCATION__, name="_SECTION_PARAMETERS_", &
+                                description="controls the activation of the MOA analysis", &
+                                usage="&MOA T", default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+
+      CALL keyword_create(keyword, __LOCATION__,name="NFRG", &
+                          description="Number of fragments", &
+                          usage="NFRG 2", default_i_val=0)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="LFRG", &
+                          description="Length of fragments as a list", &
+                          usage="LFRG 1 2", &
+                          n_var=-1, type_of_var=integer_t, default_i_vals=(/-100/), repeats=.FALSE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="IFRG", &
+                          description="Indices of atoms in the fragment as a list or range"// &
+                          "For multiple fragments depending on the length of each"// &
+                          "fragement the list of atoms following the first set "// &
+                          "will go to second set and so on", &
+                          usage="IFRG 1 2 3", &
+                          n_var=-1, type_of_var=integer_t, default_i_vals=(/-100/), repeats=.FALSE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="IFUNO", &
+                          description="To create UNO orbs from UHF orbs and do MOA only on"// &
+                                       "additional alpha orbital", &
+                          n_var=1, type_of_var=logical_t, &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="JACOBI_P", &
+                          description="To use Jacobi diagonalization for calculating P", &
+                          n_var=1, type_of_var=logical_t, &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="DEBUG_PRINT", &
+                          description="To print most of the matrices and eigenvalues, eigen vectors", &
+                          n_var=1, type_of_var=logical_t, &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="REF_STATE_WFN_FILE", &
+                          description="Name of the wave function file for reference state, may include a path.", &
+                          usage="REF_STATE_WFN_FILE <FILENAME>", &
+                          default_lc_val="IGNORE_THIS:NOT_USING_ANY_REFERENCE", type_of_var=lchar_t)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+
+      CALL keyword_create(keyword, __LOCATION__, name="NOMOA", &
+                          description="Exclude molecular orbitals"// &
+                          "Any non-zero number will exclude that "// &
+                          "particular orbital", &
+                          usage="NOMOA 1 2 3", &
+                          n_var=-1, type_of_var=integer_t, default_i_vals=(/-100000/), repeats=.FALSE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="NOMOAA", &
+                          description="Exclude molecular orbitals"// &
+                          "Any non-zero number will exclude that "// &
+                          "particular orbital", &
+                          usage="NOMOAA 1 2 3", &
+                          n_var=-1, type_of_var=integer_t, default_i_vals=(/-100000/), repeats=.FALSE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="NOMOAB", &
+                          description="Exclude molecular orbitals"// &
+                          "Any non-zero number will exclude that "// &
+                          "particular orbital", &
+                          usage="NOMOAB 1 1 0", &
+                          n_var=-1, type_of_var=integer_t, default_i_vals=(/-100000/), repeats=.FALSE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="VEC_TOL", &
+                          description="Print orbitals (eigen vector values)"//&
+                                      "greater than this number in fragments", &
+                          usage="VEC_TOL 0.01", default_r_val=1.e-2_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+
+      ! Subsection for Saving MOs to CUBE files
+      CALL cp_print_key_section_create(print_key, __LOCATION__, 'MO_CUBES', &
+                                       description="Controls saving of MO cube files", &
+                                       print_level=high_print_level, filename="")
+
+      ! Keyword #1: Stride
+      CALL keyword_create(keyword, __LOCATION__, name='STRIDE', &
+                          description="The stride (X,Y,Z) used to write the cube file", &
+                          usage="STRIDE {integer} {integer} {integer}", n_var=-1, &
+                          default_i_vals=(/2, 2, 2/), type_of_var=integer_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+
+      ! Keyword #2: List of MO IDs
+      CALL keyword_create(keyword, __LOCATION__, name='MO_LIST', &
+                          description="Indices of molecular orbitals to save", &
+                          usage="MO_LIST {integer} {integer} .. {integer}", &
+                          type_of_var=integer_t, n_var=-1, repeats=.TRUE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+
+      CALL section_add_subsection(section, print_key)
+      CALL section_release(print_key)
+
+
+   END SUBROUTINE create_moa_section
+
 
 END MODULE input_cp2k_properties_dft

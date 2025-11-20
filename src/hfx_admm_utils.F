@@ -320,7 +320,7 @@ CONTAINS
 ! **************************************************************************************************
 
    SUBROUTINE hfx_ks_matrix(qs_env, matrix_ks, rho, energy, calculate_forces, &
-                            just_energy, v_rspace_new, v_tau_rspace)
+                            just_energy, v_rspace_new, v_tau_rspace, calc_vab)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_ks
@@ -328,6 +328,7 @@ CONTAINS
       TYPE(qs_energy_type), POINTER                      :: energy
       LOGICAL, INTENT(in)                                :: calculate_forces, just_energy
       TYPE(pw_p_type), DIMENSION(:), POINTER             :: v_rspace_new, v_tau_rspace
+      LOGICAL, INTENT(in), OPTIONAL                      :: calc_vab
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ks_matrix', routineP = moduleN//':'//routineN
 
@@ -354,6 +355,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: adiabatic_rescaling_section, &
                                                             hfx_sections, input
       TYPE(virial_type), POINTER                         :: virial
+      
 
       CALL timeset(routineN, handle)
 
@@ -431,6 +433,11 @@ CONTAINS
             CALL get_qs_env(qs_env=qs_env, matrix_ks_kp=matrix_ks_orb, rho=rho_orb)
          END IF
          CALL qs_rho_get(rho_struct=rho_orb, rho_ao_kp=rho_ao_orb)
+
+         IF (PRESENT(calc_vab)) THEN
+            IF(calc_vab) s_mstruct_changed = .TRUE.
+         END IF
+
          ! Finally the real hfx calulation
          ehfx = 0.0_dp
          DO ispin = 1, mspin

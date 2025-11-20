@@ -24,6 +24,7 @@ MODULE input_cp2k_mixed
                                               mix_linear_combination,&
                                               mix_minimum,&
                                               mix_restrained
+   USE input_cp2k_hfx,                  ONLY: create_hfx_section
    USE input_keyword_types,             ONLY: keyword_create,&
                                               keyword_release,&
                                               keyword_type
@@ -505,6 +506,11 @@ CONTAINS
       CALL create_print_mix_section(subsection)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
+
+      CALL create_vab_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
    END SUBROUTINE create_mix_section
 
 ! **************************************************************************************************
@@ -642,5 +648,49 @@ CONTAINS
       CALL keyword_release(keyword)
 
    END SUBROUTINE create_mixed_cdft_block_section
+
+
+! **************************************************************************************************
+!> \brief creates the input section for the vab calculation inputs
+!> \param section the section to create
+!> \author pavan
+! **************************************************************************************************
+   SUBROUTINE create_vab_section(section)
+      TYPE(section_type), POINTER                        :: section
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'create_vab_section', &
+         routineP = moduleN//':'//routineN
+
+      TYPE(keyword_type), POINTER                        :: keyword
+      TYPE(section_type), POINTER                        :: subsection
+
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create(section, __LOCATION__, "vab", &
+                          description="Parameters needed for the calculation of the VAB ", &
+                          n_keywords=2, n_subsections=1, repeats=.FALSE.)
+
+      NULLIFY (subsection, keyword)
+
+
+      CALL keyword_create(keyword, __LOCATION__, name="DO_VAB", &
+                          description="VAB invocation parameter", &
+                          usage="do_vab true", default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      !Section to give the parameters for a single step of HF energy calculation
+      !that is done during the VAB evaluation. For each of the states A, B,
+      !AB-symmetric, and AB-anti-symmetric one step of HF energy evaluation is
+      !required and these parameters stay the same for all these 4 steps
+      !HF fraction MUST BE 1.0 for VAB calculation. Whole HFX module is created
+      !by
+      !Manuel Guidon and a call is made here for the input section.
+
+      CALL create_hfx_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+   END SUBROUTINE create_vab_section
 
 END MODULE input_cp2k_mixed

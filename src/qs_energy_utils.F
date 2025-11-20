@@ -30,11 +30,13 @@ MODULE qs_energy_utils
    USE et_coupling_proj,                ONLY: calc_et_coupling_proj
    USE input_section_types,             ONLY: section_vals_get,&
                                               section_vals_get_subs_vals,&
-                                              section_vals_type
+                                              section_vals_type, &
+                                              section_vals_val_get
    USE kinds,                           ONLY: dp
    USE kpoint_methods,                  ONLY: kpoint_density_matrices,&
                                               kpoint_density_transform
    USE kpoint_types,                    ONLY: kpoint_type
+   USE moa,                             ONLY: maximal_orbital_analysis
    USE mp2,                             ONLY: mp2_main
    USE pw_env_types,                    ONLY: pw_env_type
    USE pw_types,                        ONLY: pw_p_type
@@ -216,7 +218,7 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: handle
-      LOGICAL                                            :: do_et, do_et_proj
+      LOGICAL                                            :: do_et, do_et_proj, do_moa
       TYPE(atprop_type), POINTER                         :: atprop
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(pw_env_type), POINTER                         :: pw_env
@@ -255,6 +257,13 @@ CONTAINS
          CALL atprop_array_add(atprop%atener, atprop%atecc)
          CALL atprop_array_add(atprop%atener, atprop%ate1c)
       END IF
+
+      ! Maximal Orbital Analysis
+      CALL section_vals_val_get(qs_env%input,"PROPERTIES%MOA%_SECTION_PARAMETERS_", l_val=do_moa)
+      IF(do_moa) THEN
+         CALL maximal_orbital_analysis(qs_env)
+      END IF
+
 
       ! ET coupling - projection-operator approach
       NULLIFY (proj_section)
